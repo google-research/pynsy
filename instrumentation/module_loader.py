@@ -37,7 +37,7 @@ class PatchingLoader(Loader):
     return self.existing_loader.module_repr(module)
 
   def exec_module(self, module: ModuleType) -> None:
-    if hasattr(self.existing_loader, "get_code"):
+    if hasattr(self.existing_loader, "get_code") and self.name.startswith("demos."):
       module_code = self.existing_loader.get_code(self.name) # type: ignore
       if module_code:
         print("[Python Analysis] Instrumenting module " + self.name)

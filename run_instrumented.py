@@ -5,7 +5,7 @@ from instrumentation.stack_tracking_receiver import StackTrackingReceiver
 from instrumentation.data_tracing_receiver import DataTracingReceiver
 from instrumentation.module_loader import PatchingPathFinder
 from instrumentation.exec import exec_instrumented
-
+import json
 patcher = PatchingPathFinder()
 patcher.install()
 
@@ -21,6 +21,7 @@ with receiver:
 
 for k, v in receiver.trace_logger.items():
   print(k, ": ", v)
+#print(json.dumps(receiver.trace_logger,indent=4))
 
 def pretty_symbolic(symbolic):
   if symbolic.is_cow_pointer:
@@ -48,8 +49,8 @@ def print_deps(symbolic, indent_level=0):
 
 # print("orig: " + str(orig_arr))
 # print("out: " + str(arr))
-#
-# print_deps(receiver.symbolic_stack.pop())
+
+#print_deps(receiver.symbolic_stack.pop())
 
 # import numpy as np
 # arr = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
@@ -57,39 +58,39 @@ def print_deps(symbolic, indent_level=0):
 #   np.linalg.eigvals(arr)
 
 # source = dedent(
-  # """
-  # def myFunc():
-  #   x = -1
-  #   data = list(range(5))
-  #   for i in data:
-  #     if i == 3:
-  #       break
-  #     else:
-  #       while i > 0:
-  #         x += i
-  #         i -= 1
-  # myFunc()
-  # """
+# """
+# def myFunc():
+#   x = -1
+#   data = list(range(5))
+#   for i in data:
+#     if i == 3:
+#       break
+#     else:
+#       while i > 0:
+#         x += i
+#         i -= 1
+# myFunc()
+# """
 # )
 
 # source = dedent(
-  # """
-  # def factorial(i):
-  #   if i == 0:
-  #     return 1
-  #   else:
-  #     return i * factorial(i - 1)
+# """
+# def factorial(i):
+#   if i == 0:
+#     return 1
+#   else:
+#     return i * factorial(i - 1)
 
-  # factorial(5)
-  # """
+# factorial(5)
+# """
 # )
 
 # source = dedent(
-  # """
-  # my_arr = [1, 2, 3]
-  # for i in range(0, 3):
-  #   my_arr[i] = my_arr[i] + 1
-  # """
+# """
+# my_arr = [1, 2, 3]
+# for i in range(0, 3):
+#   my_arr[i] = my_arr[i] + 1
+# """
 # )
 
 # source = dedent(
