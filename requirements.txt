@@ -1,0 +1,8 @@
+bytecode==0.11.0
+
+pytest==4.4.1
+snapshottest==0.5.1
+
+numpy==1.19.0
+
+mypy==0.790

@@ -1,0 +1,6 @@
+*.pyc
+.vscode/
+.venv/
+.venv37/
+.venv38/
+.venv39/
