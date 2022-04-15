@@ -48,8 +48,6 @@ class PatchingLoader(Loader):
 
         def py_instrument_receiver(stack: List[Any], opcode: Union[Literal["JUMP_TARGET"], int], arg: Any, opindex: int, code_id: int, is_post: bool) -> None:
           call_all_receivers(stack, opcode, arg, opindex, code_id, is_post, id_to_bytecode)
-
-        # TODO(shadaj): use an immutable overlay instead
         module.__dict__["py_instrument_receiver"] = py_instrument_receiver
         exec(instrumented.to_code(), module.__dict__)
         self.finder.patched_modules.append(module.__name__)

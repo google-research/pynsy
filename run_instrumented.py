@@ -1,11 +1,8 @@
-from textwrap import dedent
 from dis import opname
 
-from instrumentation.stack_tracking_receiver import StackTrackingReceiver
-from instrumentation.data_tracing_receiver import DataTracingReceiver
 from instrumentation.module_loader import PatchingPathFinder
-from instrumentation.exec import exec_instrumented
-import json
+from instrumentation.stack_tracking_receiver import StackTrackingReceiver
+
 patcher = PatchingPathFinder()
 patcher.install()
 

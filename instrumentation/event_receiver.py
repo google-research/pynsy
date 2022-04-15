@@ -26,3 +26,4 @@ def add_receiver(receiver: EventReceiver) -> Callable[[], None]:
 def call_all_receivers(stack: List[Any], opcode: Union[Literal["JUMP_TARGET"], int], arg: Any, opindex: int, code_id: int, is_post: bool, id_to_orig_bytecode: Dict[int, Bytecode]) -> None:
   for receiver in _active_receivers:
     receiver.on_event(stack, opcode, arg, opindex, code_id, is_post, id_to_orig_bytecode)
+
