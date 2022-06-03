@@ -5,7 +5,7 @@ from typing_extensions import Literal
 
 class EventReceiver(object):
   current_exit_func: Optional[Callable[[], None]] = None
-  def on_event(self, stack: List[Any], opcode: Union[Literal["JUMP_TARGET"], int], arg: Any, opindex: int, code_id: int, is_post: bool, id_to_orig_bytecode: Dict[int, Bytecode]) -> None:
+  def on_event(self, stack: List[Any], opcode: int, arg: Any, opindex: int, code_id: int, is_post: bool, id_to_orig_bytecode: Dict[int, Bytecode]) -> None:
     pass
 
   def __enter__(self) -> None:
@@ -23,7 +23,7 @@ def add_receiver(receiver: EventReceiver) -> Callable[[], None]:
   _active_receivers.insert(0, receiver)
   return lambda: _active_receivers.remove(receiver)
 
-def call_all_receivers(stack: List[Any], opcode: Union[Literal["JUMP_TARGET"], int], arg: Any, opindex: int, code_id: int, is_post: bool, id_to_orig_bytecode: Dict[int, Bytecode]) -> None:
+def call_all_receivers(stack: List[Any], opcode: int, arg: Any, opindex: int, code_id: int, is_post: bool, id_to_orig_bytecode: Dict[int, Bytecode]) -> None:
   for receiver in _active_receivers:
     receiver.on_event(stack, opcode, arg, opindex, code_id, is_post, id_to_orig_bytecode)
 

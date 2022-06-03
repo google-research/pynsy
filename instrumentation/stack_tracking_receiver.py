@@ -104,14 +104,14 @@ class StackTrackingReceiver(EventReceiver):
     self.trace_logger[self.exec_len_key] += 1
     return key
 
-  def on_event(self, stack: List[Any], opcode: Union[Literal["JUMP_TARGET"], int], arg: Any, opindex: int, code_id: int, is_post: bool, id_to_orig_bytecode: Dict[int, Bytecode]) -> None:
+  def on_event(self, stack: List[Any], opcode: int, arg: Any, opindex: int, code_id: int, is_post: bool, id_to_orig_bytecode: Dict[int, Bytecode]) -> None:
     if self.already_in_receiver:
       return
     self.already_in_receiver = True
 
     cur_frame = get_instrumented_program_frame()
 
-    if opcode == "JUMP_TARGET":
+    if opcode == -2:
       self.handle_jump_target(code_id, arg["label"], id_to_orig_bytecode)
     elif opname[opcode] == "CALL_FUNCTION":
       if not is_post:

@@ -1,10 +1,10 @@
-from types import CodeType, LambdaType
+from types import CodeType
 
 from bytecode import Bytecode, CellVar, FreeVar, Instr, Label, UNSET
 
 from .util import clone_bytecode_empty_body
 
-from typing import Any, Callable, Dict, Optional, Union, cast
+from typing import Any, Dict, Optional, Union, cast
 from typing_extensions import Literal
 
 # Mappings from op to the size of the stack to report
@@ -147,7 +147,7 @@ def emit_instrument(
     op: Instr, i: int, stacksize: int,
     label_to_op_index: Dict[Label, int],
     code_id: int, is_post: bool,
-    opcode: Optional[Union[int, Literal["JUMP_TARGET"]]] = None,
+    opcode: int = -1,  # -1 denotes uninitialized
     arg: Any = None
 ) -> None:
   def emit_kv(k: str, v: Union[str, int]) -> None:
@@ -206,7 +206,7 @@ def emit_instrument(
   # add additional parameters specifying the opcode, argument, and original op index
   instrumented.append(Instr(
       name="LOAD_CONST",
-      arg=opcode if opcode else op.opcode,
+      arg=opcode if opcode != -1 else op.opcode,
       lineno=op.lineno
   ))
 
@@ -323,7 +323,7 @@ def instrument_bytecode(byte_code: Bytecode, code_id: int = 0) -> Bytecode:
     if isinstance(instr, Label):
       emit_instrument(
           instrumented_byte_code, byte_code[i + 1], i, 0, label_to_op_index, code_id, False,
-          opcode="JUMP_TARGET", arg=instr
+          opcode=-2, arg=instr # -2 denotes JUMP_TARGET
       )
 
     if isinstance(instr, Instr) and instr.name in post_instrumented_ops:

@@ -11,7 +11,7 @@ def exec_instrumented(source: str) -> None:
 
   instrumented = id_to_bytecode_new_codeobjects[code_to_id[root_codeobject]]
 
-  def py_instrument_receiver(stack: List[Any], opcode: Union[Literal["JUMP_TARGET"], int], arg: Any, opindex: int, code_id: int, is_post: bool) -> None:
+  def py_instrument_receiver(stack: List[Any], opcode: int, arg: Any, opindex: int, code_id: int, is_post: bool) -> None:
     call_all_receivers(stack, opcode, arg, opindex, code_id, is_post, id_to_bytecode)
 
   exec(instrumented.to_code(), {

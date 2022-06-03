@@ -18,7 +18,7 @@ class StackElement(object):
 
   def __init__(
     self,
-    concrete: Any, opcode: Union[Literal["JUMP_TARGET"], int],
+    concrete: Any, opcode: int,
     deps: List["StackElement"],
     is_cow_pointer: bool = False,
     cow_latest_value: Optional["StackElement"] = None,
@@ -150,7 +150,7 @@ class DataTracingReceiver(EventReceiver):
         cow_latest_value=underlying,
       )
     elif isinstance(concrete_value, dict):
-      raise Exception("TODO(shadaj)")
+      raise Exception("TODO")
     else:
       return StackElement(
         self.convert_stack_elem_to_heap_id(concrete_value),
@@ -158,7 +158,7 @@ class DataTracingReceiver(EventReceiver):
         []
       )
 
-  def on_event(self, stack: List[Any], opcode: Union[Literal["JUMP_TARGET"], int], arg: Any, opindex: int, code_id: int, is_post: bool, id_to_orig_bytecode: Dict[int, Bytecode]) -> None:
+  def on_event(self, stack: List[Any], opcode: int, arg: Any, opindex: int, code_id: int, is_post: bool, id_to_orig_bytecode: Dict[int, Bytecode]) -> None:
     if self.already_in_receiver:
       return
     self.already_in_receiver = True
@@ -181,10 +181,10 @@ class DataTracingReceiver(EventReceiver):
         # handle default arguments
         for local, value in cur_frame.f_locals.items():
           if local not in self.frame_variables[cur_frame]:
-            # TODO(shadaj): handle mutable default arguments
+            # TODO: handle mutable default arguments
             self.frame_variables[cur_frame][local] = self.convert_concrete_to_symbolic(value)
 
-    if opcode == "JUMP_TARGET":
+    if opcode == -2: # -2 denotes JUMP_TARGET
       pass
     elif opname[opcode] == "CALL_FUNCTION":
       if not is_post:
@@ -199,7 +199,7 @@ class DataTracingReceiver(EventReceiver):
         if hasattr(function_object, "__code__"):
           code_object = function_object.__code__
           positional_arg_names = list(code_object.co_varnames)[:code_object.co_argcount]
-          # TODO(shadaj): handle non-positional calls
+          # TODO: handle non-positional calls
           for i, arg in enumerate(positional_arg_names):
             if i < len(symbolic_stack_args):
               args_mapping[arg] = symbolic_stack_args[i]
@@ -215,7 +215,7 @@ class DataTracingReceiver(EventReceiver):
           self.symbolic_stack.append(StackElement(
             function_args_id_stack[0],
             opcode,
-            [] # TODO(shadaj): add approximate dependencies
+            [] # TODO: add approximate dependencies
           ))
     elif opname[opcode] == "RETURN_VALUE":
       self.frame_stack.pop()
@@ -243,7 +243,7 @@ class DataTracingReceiver(EventReceiver):
       elif opname[opcode] == "LOAD_CONST":
         self.symbolic_stack.append(StackElement(object_id_stack[0], opcode, []))
       elif opname[opcode] == "LOAD_GLOBAL":
-        # TODO(shadaj): implement correctly
+        # TODO: implement correctly
         self.symbolic_stack.append(StackElement(object_id_stack[0], opcode, []))
       elif opname[opcode] == "LOAD_NAME" or opname[opcode] == "LOAD_FAST":
         self.load_onto_symbolic_stack(object_id_stack, cur_frame, arg)
@@ -280,7 +280,7 @@ class DataTracingReceiver(EventReceiver):
         collection = self.symbolic_stack.pop()
         value = self.symbolic_stack.pop()
 
-        index_reified = index.concrete # TODO(shadaj): handle non-integer indices
+        index_reified = index.concrete # TODO: handle non-integer indices
         if collection.is_cow_pointer and collection.cow_latest_value:
           orig_collection = collection.cow_latest_value
           new_collection = orig_collection.collection_updated(index_reified, value)
