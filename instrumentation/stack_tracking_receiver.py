@@ -6,6 +6,7 @@ from .event_receiver import EventReceiver
 from .heap_object_tracking import HeapObjectTracker
 from .instrument import binary_ops
 from .util import ObjectId, get_instrumented_program_frame
+from .load_store_abstractor import stringify_maybe_object_id
 
 from typing import Any, Dict, List, Union, Optional
 

@@ -1,48 +1,71 @@
+#from builtins import function
 from dis import opname
 
 from instrumentation.module_loader import PatchingPathFinder
 from instrumentation.stack_tracking_receiver import StackTrackingReceiver
+import importlib.machinery
+import importlib.util
+import os, sys
+import importlib
+
+# Import module
+def load_main_python_program(filepath):
+  modulename = os.path.basename(filepath)
+  loader = importlib.machinery.SourceFileLoader(modulename, filepath)
+  spec = importlib.util.spec_from_loader( modulename, loader )
+  mymodule = importlib.util.module_from_spec( spec )
+  return loader, mymodule
+
+#loader, mymodule = load_main_python_program(sys.argv[1])
+
 
 patcher = PatchingPathFinder()
 patcher.install()
 
-from demos.mnist import init_fun
-# import random
-# arr = [random.randint(0, 10) for i in range(10)]
-# orig_arr = list(arr)
-#receiver = DataTracingReceiver()
+p_m_f = sys.argv[1].split(".")
+m = p_m_f[-2]
+f = p_m_f[-1]
+p = '.'.join(p_m_f[:-1])
+print(p, m, f)
+PUT = __import__(p, globals(), locals(), [], 0)
+module_under_test = getattr(PUT, m)
+function_under_test = getattr(module_under_test, f)
+
+#print(sys.argv[1])
+#PUT = __import__(sys.argv[1])
 receiver = StackTrackingReceiver()
+
 with receiver:
-  #  with receiver:
-  init_fun()
+  function_under_test()
+
 
 for k, v in receiver.trace_logger.items():
   print(k, ": ", v)
 #print(json.dumps(receiver.trace_logger,indent=4))
 
-def pretty_symbolic(symbolic):
-  if symbolic.is_cow_pointer:
-    return pretty_symbolic(symbolic.cow_latest_value)
-  elif symbolic.collection_elems:
-    return "[" + ", ".join(pretty_symbolic(elem) for elem in symbolic.collection_elems) + "]"
-  else:
-    return receiver.stringify_maybe_object_id(symbolic.concrete)
-
-def print_deps(symbolic, indent_level=0):
-  indent = '  ' * indent_level
-  if symbolic.is_cow_pointer:
-    print_deps(symbolic.cow_latest_value, indent_level)
-  elif symbolic.collection_elems:
-    print(f"{indent}collection with elements:")
-    for elem in symbolic.collection_elems:
-      print_deps(elem, indent_level + 1)
-  elif opname[symbolic.opcode] == "BINARY_SUBSCR":
-    print(f"{indent}{pretty_symbolic(symbolic)} depends on index {symbolic.deps[1]} of collection {pretty_symbolic(symbolic.deps[0])}")
-    print_deps(symbolic.deps[0].collection_elems[symbolic.deps[1]], indent_level + 1)
-  else:
-    print(f"{indent}{pretty_symbolic(symbolic)} depends via {opname[symbolic.opcode]}")
-    for dep in symbolic.deps:
-      print_deps(dep, indent_level + 1)
+# def pretty_symbolic(symbolic):
+#   if symbolic.is_cow_pointer:
+#     return pretty_symbolic(symbolic.cow_latest_value)
+#   elif symbolic.collection_elems:
+#     return "[" + ", ".join(pretty_symbolic(elem) for elem in symbolic.collection_elems) + "]"
+#   else:
+#     return receiver.stringify_maybe_object_id(symbolic.concrete)
+#
+# def print_deps(symbolic, indent_level=0):
+#   indent = '  ' * indent_level
+#   if symbolic.is_cow_pointer:
+#     print_deps(symbolic.cow_latest_value, indent_level)
+#   elif symbolic.collection_elems:
+#     print(f"{indent}collection with elements:")
+#     for elem in symbolic.collection_elems:
+#       print_deps(elem, indent_level + 1)
+#   elif opname[symbolic.opcode] == "BINARY_SUBSCR":
+#     print(f"{indent}{pretty_symbolic(symbolic)} depends on index {symbolic.deps[1]} of collection {pretty_symbolic(symbolic.deps[0])}")
+#     print_deps(symbolic.deps[0].collection_elems[symbolic.deps[1]], indent_level + 1)
+#   else:
+#     print(f"{indent}{pretty_symbolic(symbolic)} depends via {opname[symbolic.opcode]}")
+#     for dep in symbolic.deps:
+#       print_deps(dep, indent_level + 1)
 
 # print("orig: " + str(orig_arr))
 # print("out: " + str(arr))
