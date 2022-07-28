@@ -144,117 +144,74 @@ post_instrumented_ops = {
 
 def emit_instrument(
     instrumented: Bytecode,
-    op: Instr, i: int, stacksize: int,
-    label_to_op_index: Dict[Label, int],
-    code_id: int, is_post: bool,
-    opcode: int = -1,  # -1 denotes uninitialized
-    arg: Any = None
+    instr: Instr, i: int, stacksize: int,
+    code_id: int, is_post: bool
 ) -> None:
-  def emit_kv(k: str, v: Union[str, int]) -> None:
-    instrumented.append(Instr(
-        name="LOAD_CONST",
-        arg=k,
-        lineno=op.lineno
-    ))
 
-    instrumented.append(Instr(
-        name="LOAD_CONST",
-        arg=v,
-        lineno=op.lineno
-    ))
-
-    instrumented.append(Instr(
-        name="BUILD_MAP",
-        arg=1,
-        lineno=op.lineno
-    ))
-
+  if not isinstance(instr, Label):
+    print(f"stacksize = {stacksize} instr = {instr.name}")
   if stacksize > 0:
     instrumented.append(Instr(
         name="BUILD_LIST",
         arg=stacksize,
-        lineno=op.lineno
+        lineno=instr.lineno
     ))
 
     # make a copy to send to the receiver
     instrumented.append(Instr(
         name="DUP_TOP",
-        lineno=op.lineno
+        lineno=instr.lineno
     ))
 
   # load the receiver
   instrumented.append(Instr(
       name="LOAD_GLOBAL",
       arg="py_instrument_receiver",
-      lineno=op.lineno
+      lineno=instr.lineno
   ))
 
   if stacksize > 0:
-    # move the list copy to the end of the stack
     instrumented.append(Instr(
         name="ROT_TWO",
-        lineno=op.lineno
+        lineno=instr.lineno
     ))
   else:
-    # add an empty list since we have zero stacksize
     instrumented.append(Instr(
         name="BUILD_LIST",
-        arg=0,
-        lineno=op.lineno
+        arg=stacksize,
+        lineno=instr.lineno
     ))
 
-  # add additional parameters specifying the opcode, argument, and original op index
-  instrumented.append(Instr(
-      name="LOAD_CONST",
-      arg=opcode if opcode != -1 else op.opcode,
-      lineno=op.lineno
-  ))
-
-  if not arg:
-    arg = op.arg
-
-  if isinstance(arg, Label):
-    emit_kv("label", label_to_op_index[arg])
-  elif isinstance(arg, CellVar):
-    emit_kv("cell", arg.name)
-  elif isinstance(arg, FreeVar):
-    emit_kv("free", arg.name)
-  else:
-    instrumented.append(Instr(
-        name="LOAD_CONST",
-        arg=None if arg == UNSET else arg,
-        lineno=op.lineno
-    ))
 
   instrumented.append(Instr(
       name="LOAD_CONST",
       arg=i,
-      lineno=op.lineno
+      lineno=instr.lineno
   ))
 
   instrumented.append(Instr(
       name="LOAD_CONST",
       arg=code_id,
-      lineno=op.lineno
+      lineno=instr.lineno
   ))
 
   instrumented.append(Instr(
       name="LOAD_CONST",
       arg=is_post,
-      lineno=op.lineno
+      lineno=instr.lineno
   ))
 
   # call the receiver
   instrumented.append(Instr(
       name="CALL_FUNCTION",
-      arg=6,  # number of arguments
-      lineno=op.lineno
+      arg=4,  # number of arguments # careful.  Change it if you change the arguments being passed above
+      lineno=instr.lineno
   ))
 
   # ignore the receiver result
   instrumented.append(Instr(
       name="POP_TOP",
-      lineno=op.lineno
+      lineno=instr.lineno
   ))
 
   if stacksize > 1:
@@ -262,20 +219,20 @@ def emit_instrument(
     instrumented.append(Instr(
         name="LOAD_GLOBAL",
         arg="reversed",
-        lineno=op.lineno
+        lineno=instr.lineno
     ))
 
     # move the argument after the callable
     instrumented.append(Instr(
         name="ROT_TWO",
-        lineno=op.lineno
+        lineno=instr.lineno
     ))
 
     # call the function so that the only thing left on the stack by us is the reversed list
     instrumented.append(Instr(
         name="CALL_FUNCTION",
         arg=1,
-        lineno=op.lineno
+        lineno=instr.lineno
     ))
 
   # and unpack the list back onto the stack
@@ -283,7 +240,7 @@ def emit_instrument(
     instrumented.append(Instr(
         name="UNPACK_SEQUENCE",
         arg=stacksize,
-        lineno=op.lineno
+        lineno=instr.lineno
     ))
 
 
@@ -309,7 +266,7 @@ def instrument_bytecode(byte_code: Bytecode, code_id: int = 0) -> Bytecode:
       emit_instrument(
           instrumented_byte_code, instr, i,
           get_args_num(pre_instrumented_ops[instr.name], instr),
-          label_to_op_index, code_id, False
+          code_id, False
       )
 
     if isinstance(instr, Instr) \
@@ -321,16 +278,17 @@ def instrument_bytecode(byte_code: Bytecode, code_id: int = 0) -> Bytecode:
     instrumented_byte_code.append(instr)
 
     if isinstance(instr, Label):
+      print(f"instr = {instr}")
       emit_instrument(
-          instrumented_byte_code, byte_code[i + 1], i, 0, label_to_op_index, code_id, False,
-          opcode=-2, arg=instr # -2 denotes JUMP_TARGET
+          instrumented_byte_code, byte_code[i + 1], i,
+          0, code_id, True
       )
 
     if isinstance(instr, Instr) and instr.name in post_instrumented_ops:
       emit_instrument(
           instrumented_byte_code, instr, i,
           get_args_num(post_instrumented_ops[instr.name], instr),
-          label_to_op_index, code_id, True
+          code_id, True
       )
 
   return instrumented_byte_code

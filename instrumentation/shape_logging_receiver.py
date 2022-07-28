@@ -12,6 +12,8 @@ from .util import ObjectId, get_instrumented_program_frame
 
 from typing import Any, Dict, List, Union, Optional
 from typing_extensions import Literal
+from bytecode import Bytecode, CellVar, FreeVar, Instr, Label, UNSET
+from dis import Instruction
 
 
 def getlineno(id_to_orig_bytecode, code_id, opindex):
@@ -25,6 +27,7 @@ class ShapeLoggingReceiver(EventReceiver):
   cell_to_frame: Dict[int, Union[FrameType, int]]
   already_in_receiver: bool = False
   pre_op_stack: List[Any]
+  label_to_instr_id: Dict[int, Dict[Instruction,int]]
 
   def __init__(self) -> None:
     self.loop_stack = []
@@ -35,7 +38,20 @@ class ShapeLoggingReceiver(EventReceiver):
     self.pre_op_stack = []
     self.trace_logger = dict()
     self.exec_len_key = "exec_len"
+    self.label_to_instr_id = dict()
     super().__init__()
+
+  def get_label_to_instr_id(self, id_to_orig_bytecode, code_id, instr_arg):
+    if code_id not in self.label_to_instr_id:
+      self.label_to_instr_id[code_id] = dict()
+      for id, instr in enumerate(id_to_orig_bytecode[code_id]):
+        if isinstance(instr, Label):
+          self.label_to_instr_id[code_id][instr] = id + 1
+    print(f'target_id = {code_id}, {instr_arg}')
+    target_id = self.label_to_instr_id[code_id][instr_arg]
+    return target_id
+
+
 
   def show_op_index(self, code_id: int, op_index: int, id_to_orig_bytecode: Dict[int, Bytecode]) -> str:
     return "op #" + str(op_index) + " (" + str(id_to_orig_bytecode[code_id][op_index]) + ")"
@@ -61,7 +77,7 @@ class ShapeLoggingReceiver(EventReceiver):
                                    "exec_idx": self.trace_logger["exec_len"]
                                    })
 
-  def handle_jump_target(self, code_id: int, target_op_index: int, id_to_orig_bytecode: Dict[int, Bytecode]) -> None:
+  def handle_jump_target(self, target_op_index: int) -> None:
     if target_op_index in self.loop_stack:
       while self.loop_stack[-1] != target_op_index:
         del self.loop_stack[-1]
@@ -107,189 +123,194 @@ class ShapeLoggingReceiver(EventReceiver):
     self.trace_logger[self.exec_len_key] += 1
     return key
 
-  def on_event(self, stack: List[Any], opcode: int, arg: Any, opindex: int, code_id: int, is_post: bool, id_to_orig_bytecode: Dict[int, Bytecode]) -> None:
+  def on_event(self, stack: List[Any], opindex: int,
+      code_id: int, is_post: bool,
+      id_to_orig_bytecode: Dict[int, Bytecode]) -> None:
     if self.already_in_receiver:
       return
     self.already_in_receiver = True
 
     cur_frame = get_instrumented_program_frame()
+    instr = id_to_orig_bytecode[code_id][opindex]
 
-    if opcode == -2:
-      self.handle_jump_target(code_id, arg["label"], id_to_orig_bytecode)
-    elif opname[opcode] == "CALL_FUNCTION":
-      if not is_post:
-        function_args_id_stack = self.convert_stack_to_heap_id(stack)
-        # self.print_stack_indent()
-        # print(
-        #   "begin function call - function:",
-        #   self.stringify_maybe_object_id(function_args_id_stack[0]),
-        #   "on args",
-        #   "(" + ", ".join(map(self.stringify_maybe_object_id, stack[1:])) + ")"
-        # )
-
-        self.function_call_stack.append(function_args_id_stack[0])
-      else:
-        function_args_id_stack = self.convert_stack_to_heap_id(stack)
-        called_function = self.function_call_stack.pop()
-
-        # self.print_stack_indent()
-        # print(
-        #   "end function call - function:",
-        #   self.stringify_maybe_object_id(called_function),
-        #   "result:",
-        #   self.stringify_maybe_object_id(function_args_id_stack[0])
-        # )
-    elif opname[opcode] == "RETURN_VALUE":
-      pass
-    #      self.print_stack_indent()
-    #      print(f"return value -> {self.stringify_maybe_object_id(stack[0])}")
+    if isinstance(instr, Label):
+      self.handle_jump_target(opindex + 1)
     else:
-      object_id_stack = self.convert_stack_to_heap_id(stack)
-
-      if opname[opcode] == "POP_TOP" or opname[opcode] == "POP_JUMP_IF_FALSE" or opname[opcode] == "POP_JUMP_IF_TRUE":
+      opcode = instr.opcode
+      if opname[opcode] == "CALL_FUNCTION":
         if not is_post:
-          pass
-      #         self.print_stack_indent()
-      #print(f"pop top -> {self.stringify_maybe_object_id(stack[0])}")
-      elif opname[opcode] == "ROT_TWO":
-        pass
-      elif opname[opcode] == "LOAD_CONST":
-        rep = self.stringify_maybe_object_id(object_id_stack[0])
-        if rep:
-          key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-          #self.print_stack_indent(key)
-          self.trace_logger[key].append({
-              "type": "load",
-              "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
-              "exec_idx": self.trace_logger["exec_len"],
-              "indentation": (len(self.loop_stack) + len(self.function_call_stack))
-          }
-          )
-      elif opname[opcode] == "LOAD_GLOBAL":
-        rep = self.stringify_maybe_object_id(object_id_stack[0])
-        if rep:
-          key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-          #self.print_stack_indent(key)
-          self.trace_logger[key].append({
-              "type": "load",
-              "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
-              "exec_idx": self.trace_logger["exec_len"],
-              "indentation": (len(self.loop_stack) + len(self.function_call_stack))
-          }
-          )
-      elif opname[opcode] == "LOAD_NAME" or opname[opcode] == "LOAD_FAST":
-        rep = self.stringify_maybe_object_id(object_id_stack[0])
-        if rep:
-          key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-          #self.print_stack_indent(key)
-          self.trace_logger[key].append({
-              "type": "load",
-              "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
-              "exec_idx": self.trace_logger["exec_len"],
-              "indentation": (len(self.loop_stack) + len(self.function_call_stack))
-          }
-          )
-      elif opname[opcode] == "STORE_NAME" or opname[opcode] == "STORE_FAST":
-        rep = self.stringify_maybe_object_id(object_id_stack[0])
-        if rep:
-          key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-          #self.print_stack_indent(key)
-          self.trace_logger[key].append({
-              "type": "store",
-              "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
-              "exec_idx": self.trace_logger[self.exec_len_key],
-              "indentation": (len(self.loop_stack) + len(self.function_call_stack))
-          }
-          )
-      elif opname[opcode] == "LOAD_DEREF":
-        rep = self.stringify_maybe_object_id(object_id_stack[0])
-        if rep:
-          resolved_frame = self.get_var_reference_frame(cur_frame, arg)
-          var_name = arg["cell"] if "cell" in arg else arg["free"]
-          key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-          #self.print_stack_indent(key)
-          self.trace_logger[key].append({
-              "type": "load",
-              "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
-              "exec_idx": self.trace_logger[self.exec_len_key],
-              "var_name": var_name,
-              "indentation": (len(self.loop_stack) + len(self.function_call_stack))
-          }
-          )
-      elif opname[opcode] == "STORE_DEREF":
-        rep = self.stringify_maybe_object_id(object_id_stack[0])
-        if rep:
-          resolved_frame = self.get_var_reference_frame(cur_frame, arg)
-          var_name = arg["cell"] if "cell" in arg else arg["free"]
-          key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-          #self.print_stack_indent(key)
-          self.trace_logger[key].append({
-              "type": "store",
-              "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
-              "exec_idx": self.trace_logger[self.exec_len_key],
-              "var_name": var_name,
-              "indentation": (len(self.loop_stack) + len(self.function_call_stack))
-          }
-          )
-      elif opname[opcode] == "BINARY_SUBSCR":
-        rep = self.stringify_maybe_object_id(object_id_stack[0])
-        if rep:
-          if not is_post:
-            index = object_id_stack[0]
-            collection = object_id_stack[1]
-            self.pre_op_stack.append((collection, index))
-          else:
-            collection, index = self.pre_op_stack.pop()
+          function_args_id_stack = self.convert_stack_to_heap_id(stack)
+          # self.print_stack_indent()
+          # print(
+          #   "begin function call - function:",
+          #   self.stringify_maybe_object_id(function_args_id_stack[0]),
+          #   "on args",
+          #   "(" + ", ".join(map(self.stringify_maybe_object_id, stack[1:])) + ")"
+          # )
 
+          self.function_call_stack.append(function_args_id_stack[0])
+        else:
+          function_args_id_stack = self.convert_stack_to_heap_id(stack)
+          called_function = self.function_call_stack.pop()
+
+          # self.print_stack_indent()
+          # print(
+          #   "end function call - function:",
+          #   self.stringify_maybe_object_id(called_function),
+          #   "result:",
+          #   self.stringify_maybe_object_id(function_args_id_stack[0])
+          # )
+      elif opname[opcode] == "RETURN_VALUE":
+        pass
+      #      self.print_stack_indent()
+      #      print(f"return value -> {self.stringify_maybe_object_id(stack[0])}")
+      else:
+        object_id_stack = self.convert_stack_to_heap_id(stack)
+
+        if opname[opcode] == "POP_TOP" or opname[opcode] == "POP_JUMP_IF_FALSE" or opname[opcode] == "POP_JUMP_IF_TRUE":
+          if not is_post:
+            pass
+        #         self.print_stack_indent()
+        #print(f"pop top -> {self.stringify_maybe_object_id(stack[0])}")
+        elif opname[opcode] == "ROT_TWO":
+          pass
+        elif opname[opcode] == "LOAD_CONST":
+          rep = self.stringify_maybe_object_id(object_id_stack[0])
+          if rep:
+            key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
+            #self.print_stack_indent(key)
+            self.trace_logger[key].append({
+                "type": "load",
+                "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
+                "exec_idx": self.trace_logger["exec_len"],
+                "indentation": (len(self.loop_stack) + len(self.function_call_stack))
+            }
+            )
+        elif opname[opcode] == "LOAD_GLOBAL":
+          rep = self.stringify_maybe_object_id(object_id_stack[0])
+          if rep:
+            key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
+            #self.print_stack_indent(key)
+            self.trace_logger[key].append({
+                "type": "load",
+                "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
+                "exec_idx": self.trace_logger["exec_len"],
+                "indentation": (len(self.loop_stack) + len(self.function_call_stack))
+            }
+            )
+        elif opname[opcode] == "LOAD_NAME" or opname[opcode] == "LOAD_FAST":
+          rep = self.stringify_maybe_object_id(object_id_stack[0])
+          if rep:
+            key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
+            #self.print_stack_indent(key)
+            self.trace_logger[key].append({
+                "type": "load",
+                "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
+                "exec_idx": self.trace_logger["exec_len"],
+                "indentation": (len(self.loop_stack) + len(self.function_call_stack))
+            }
+            )
+        elif opname[opcode] == "STORE_NAME" or opname[opcode] == "STORE_FAST":
+          rep = self.stringify_maybe_object_id(object_id_stack[0])
+          if rep:
+            key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
+            #self.print_stack_indent(key)
+            self.trace_logger[key].append({
+                "type": "store",
+                "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
+                "exec_idx": self.trace_logger[self.exec_len_key],
+                "indentation": (len(self.loop_stack) + len(self.function_call_stack))
+            }
+            )
+        elif opname[opcode] == "LOAD_DEREF":
+          rep = self.stringify_maybe_object_id(object_id_stack[0])
+          if rep:
+            resolved_frame = self.get_var_reference_frame(cur_frame, instr.arg)
+            var_name = instr.arg_name
             key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
             #self.print_stack_indent(key)
             self.trace_logger[key].append({
                 "type": "load",
                 "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
                 "exec_idx": self.trace_logger[self.exec_len_key],
-                "idx_id": self.stringify_maybe_object_id(index),
-                "base_id": self.stringify_maybe_object_id(collection),
+                "var_name": var_name,
                 "indentation": (len(self.loop_stack) + len(self.function_call_stack))
             }
             )
-      elif opname[opcode] == "STORE_SUBSCR":
-        rep = self.stringify_maybe_object_id(object_id_stack[0])
-        if rep:
-          key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-          #          self.print_stack_indent(key)
-          self.trace_logger[key].append({
-              "type": "store",
-              "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
-              "exec_idx": self.trace_logger[self.exec_len_key],
-              "idx_id": self.stringify_maybe_object_id(object_id_stack[2]),
-              "base_id": self.stringify_maybe_object_id(object_id_stack[1]),
-              "indentation": (len(self.loop_stack) + len(self.function_call_stack))
-          }
-          )
-      elif opname[opcode] == "LOAD_CLOSURE":
-        rep = self.stringify_maybe_object_id(object_id_stack[0])
-        if rep:
-          if not object_id_stack[0].id in self.cell_to_frame:
-            self.cell_to_frame[object_id_stack[0].id] = self.frame_tracking.get_object_id(cur_frame)
-      elif opname[opcode] == "SETUP_LOOP":
-        self.loop_stack.append(arg["label"])
-      elif opname[opcode] in binary_ops:
-        if not is_post:
-          self.pre_op_stack.append((object_id_stack[0], object_id_stack[1]))
-        else:
-          cur_inputs = self.pre_op_stack.pop()
+        elif opname[opcode] == "STORE_DEREF":
+          rep = self.stringify_maybe_object_id(object_id_stack[0])
+          if rep:
+            resolved_frame = self.get_var_reference_frame(cur_frame, instr.arg)
+            var_name = instr.arg_name
+            key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
+            #self.print_stack_indent(key)
+            self.trace_logger[key].append({
+                "type": "store",
+                "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
+                "exec_idx": self.trace_logger[self.exec_len_key],
+                "var_name": var_name,
+                "indentation": (len(self.loop_stack) + len(self.function_call_stack))
+            }
+            )
+        elif opname[opcode] == "BINARY_SUBSCR":
+          rep = self.stringify_maybe_object_id(object_id_stack[0])
+          if rep:
+            if not is_post:
+              index = object_id_stack[0]
+              collection = object_id_stack[1]
+              self.pre_op_stack.append((collection, index))
+            else:
+              collection, index = self.pre_op_stack.pop()
 
-          key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-          self.trace_logger[key].append({
-              "type": "binary",
-              "exec_idx": self.trace_logger[self.exec_len_key],
-              "oper1_id": self.stringify_maybe_object_id(cur_inputs[0]),
-              "op": opname[opcode],
-              "oper2_id": self.stringify_maybe_object_id(cur_inputs[1]),
-              "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
-              "indentation": (len(self.loop_stack) + len(self.function_call_stack))
-          }
-          )
-      else:
-        pass
+              key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
+              #self.print_stack_indent(key)
+              self.trace_logger[key].append({
+                  "type": "load",
+                  "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
+                  "exec_idx": self.trace_logger[self.exec_len_key],
+                  "idx_id": self.stringify_maybe_object_id(index),
+                  "base_id": self.stringify_maybe_object_id(collection),
+                  "indentation": (len(self.loop_stack) + len(self.function_call_stack))
+              }
+              )
+        elif opname[opcode] == "STORE_SUBSCR":
+          rep = self.stringify_maybe_object_id(object_id_stack[0])
+          if rep:
+            key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
+            #          self.print_stack_indent(key)
+            self.trace_logger[key].append({
+                "type": "store",
+                "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
+                "exec_idx": self.trace_logger[self.exec_len_key],
+                "idx_id": self.stringify_maybe_object_id(object_id_stack[2]),
+                "base_id": self.stringify_maybe_object_id(object_id_stack[1]),
+                "indentation": (len(self.loop_stack) + len(self.function_call_stack))
+            }
+            )
+        elif opname[opcode] == "LOAD_CLOSURE":
+          rep = self.stringify_maybe_object_id(object_id_stack[0])
+          if rep:
+            if not object_id_stack[0].id in self.cell_to_frame:
+              self.cell_to_frame[object_id_stack[0].id] = self.frame_tracking.get_object_id(cur_frame)
+        elif opname[opcode] == "SETUP_LOOP":
+          self.loop_stack.append(instr.arg)
+        elif opname[opcode] in binary_ops:
+          if not is_post:
+            self.pre_op_stack.append((object_id_stack[0], object_id_stack[1]))
+          else:
+            cur_inputs = self.pre_op_stack.pop()
+
+            key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
+            self.trace_logger[key].append({
+                "type": "binary",
+                "exec_idx": self.trace_logger[self.exec_len_key],
+                "oper1_id": self.stringify_maybe_object_id(cur_inputs[0]),
+                "op": opname[opcode],
+                "oper2_id": self.stringify_maybe_object_id(cur_inputs[1]),
+                "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
+                "indentation": (len(self.loop_stack) + len(self.function_call_stack))
+            }
+            )
+        else:
+          pass
     self.already_in_receiver = False

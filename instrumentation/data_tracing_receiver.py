@@ -184,9 +184,10 @@ class DataTracingReceiver(EventReceiver):
             # TODO: handle mutable default arguments
             self.frame_variables[cur_frame][local] = self.convert_concrete_to_symbolic(value)
 
-    if opcode == -2: # -2 denotes JUMP_TARGET
-      pass
-    elif opname[opcode] == "CALL_FUNCTION":
+    # if opcode == -2: # -2 denotes JUMP_TARGET
+    #   pass
+    # el
+    if opname[opcode] == "CALL_FUNCTION":
       if not is_post:
         symbolic_stack_args = self.symbolic_stack[len(self.symbolic_stack) - len(stack) + 1:]
         self.symbolic_stack = self.symbolic_stack[:len(self.symbolic_stack) - len(stack)]
