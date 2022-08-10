@@ -139,6 +139,15 @@ class ShapeLoggingReceiver(EventReceiver):
         else:
           function_args_id_stack = self.convert_stack_to_heap_id(stack)
           called_function = self.function_call_stack.pop()
+          key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
+          self.trace_logger[key].append({
+              "type": opname[opcode],
+              "fun_id": self.stringify_maybe_object_id(called_function),
+              "exec_idx": self.trace_logger["exec_len"],
+              "args_id": [self.stringify_maybe_object_id(e) for e in function_args_id_stack],
+              "indentation": (
+                  len(self.loop_stack) + len(self.function_call_stack))
+          })
 
       elif opname[opcode] == "RETURN_VALUE":
         pass
