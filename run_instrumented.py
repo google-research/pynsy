@@ -2,7 +2,7 @@
 from dis import opname
 
 from instrumentation.module_loader import PatchingPathFinder
-from instrumentation.stack_tracking_receiver import StackTrackingReceiver
+from instrumentation.shape_logging_receiver import ShapeLoggingReceiver
 import importlib.machinery
 import importlib.util
 import os, sys
@@ -33,7 +33,7 @@ function_under_test = getattr(module_under_test, f)
 
 #print(sys.argv[1])
 #PUT = __import__(sys.argv[1])
-receiver = StackTrackingReceiver()
+receiver = ShapeLoggingReceiver()
 
 with receiver:
   function_under_test()
