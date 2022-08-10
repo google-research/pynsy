@@ -47,7 +47,7 @@ class ShapeLoggingReceiver(EventReceiver):
       for id, instr in enumerate(id_to_orig_bytecode[code_id]):
         if isinstance(instr, Label):
           self.label_to_instr_id[code_id][instr] = id + 1
-    print(f'target_id = {code_id}, {instr_arg}')
+    #print(f'target_id = {code_id}, {instr_arg}')
     target_id = self.label_to_instr_id[code_id][instr_arg]
     return target_id
 
@@ -81,14 +81,9 @@ class ShapeLoggingReceiver(EventReceiver):
     if target_op_index in self.loop_stack:
       while self.loop_stack[-1] != target_op_index:
         del self.loop_stack[-1]
-      del self.loop_stack[-1] # drop the last element for real
-
-      #self.print_stack_indent()
-      #print("end loop")
+      del self.loop_stack[-1]
     else:
       pass
-      #self.print_stack_indent()
-      #print("arrived at:", self.show_op_index(code_id, target_op_index, id_to_orig_bytecode))
 
   def convert_stack_elem_to_heap_id(self, elem: Any) -> Any:
     if self.heap_object_tracking.is_heap_object(elem):
@@ -140,30 +135,13 @@ class ShapeLoggingReceiver(EventReceiver):
       if opname[opcode] == "CALL_FUNCTION":
         if not is_post:
           function_args_id_stack = self.convert_stack_to_heap_id(stack)
-          # self.print_stack_indent()
-          # print(
-          #   "begin function call - function:",
-          #   self.stringify_maybe_object_id(function_args_id_stack[0]),
-          #   "on args",
-          #   "(" + ", ".join(map(self.stringify_maybe_object_id, stack[1:])) + ")"
-          # )
-
           self.function_call_stack.append(function_args_id_stack[0])
         else:
           function_args_id_stack = self.convert_stack_to_heap_id(stack)
           called_function = self.function_call_stack.pop()
 
-          # self.print_stack_indent()
-          # print(
-          #   "end function call - function:",
-          #   self.stringify_maybe_object_id(called_function),
-          #   "result:",
-          #   self.stringify_maybe_object_id(function_args_id_stack[0])
-          # )
       elif opname[opcode] == "RETURN_VALUE":
         pass
-      #      self.print_stack_indent()
-      #      print(f"return value -> {self.stringify_maybe_object_id(stack[0])}")
       else:
         object_id_stack = self.convert_stack_to_heap_id(stack)
 

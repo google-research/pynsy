@@ -47,7 +47,7 @@ class PatchingLoader(Loader):
         instrumented = id_to_bytecode_new_codeobjects[code_to_id[module_code]]
 
         def py_instrument_receiver(stack: List[Any], opindex: int, code_id: int, is_post: bool) -> None:
-          print(code_id, opindex, id_to_bytecode[code_id][opindex])
+          # print(code_id, opindex, id_to_bytecode[code_id][opindex])
           call_all_receivers(stack, opindex, code_id, is_post, id_to_bytecode)
         module.__dict__["py_instrument_receiver"] = py_instrument_receiver
         exec(instrumented.to_code(), module.__dict__)

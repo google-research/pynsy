@@ -148,8 +148,6 @@ def emit_instrument(
     code_id: int, is_post: bool
 ) -> None:
 
-  if not isinstance(instr, Label):
-    print(f"stacksize = {stacksize} instr = {instr.name}")
   if stacksize > 0:
     instrumented.append(Instr(
         name="BUILD_LIST",
@@ -278,7 +276,6 @@ def instrument_bytecode(byte_code: Bytecode, code_id: int = 0) -> Bytecode:
     instrumented_byte_code.append(instr)
 
     if isinstance(instr, Label):
-      print(f"instr = {instr}")
       emit_instrument(
           instrumented_byte_code, byte_code[i + 1], i,
           0, code_id, True
