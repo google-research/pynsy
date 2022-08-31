@@ -62,11 +62,14 @@ class ShapeLoggingReceiver(EventReceiver):
       obj = self.heap_object_tracking.get_by_id(maybe_id.id)
       if hasattr(obj, "shape"):
         shape = obj.shape
-        return " #" + str(maybe_id.id) + ":" + str(shape)
+        return " #" + str(maybe_id.id) + ":" + str(shape) + "[" + str(type(obj)) + "]"
       else:
         return None
+        #return " #" + str(maybe_id.id) + "[" + str(type(obj)) + "]"
     else:
       return None
+      #return str(maybe_id)
+
 
   def stringify_frame_id(self, frame_id: Union[FrameType, int]) -> str:
     return "frame #" + str(frame_id)
@@ -82,8 +85,6 @@ class ShapeLoggingReceiver(EventReceiver):
       while self.loop_stack[-1] != target_op_index:
         del self.loop_stack[-1]
       del self.loop_stack[-1]
-    else:
-      pass
 
   def convert_stack_elem_to_heap_id(self, elem: Any) -> Any:
     if self.heap_object_tracking.is_heap_object(elem):
@@ -95,17 +96,16 @@ class ShapeLoggingReceiver(EventReceiver):
     object_id_stack = []
     for elem in stack:
       object_id_stack.append(self.convert_stack_elem_to_heap_id(elem))
-
     return object_id_stack
 
-  def get_var_reference_frame(self, cur_frame: FrameType, arg: Any) -> Union[FrameType, int]:
-    if "cell" in arg:
+  def get_var_reference_frame(self, cur_frame: FrameType, instr: Any) -> Union[FrameType, int]:
+    if not hasattr(instr, "__code__"):
       return self.frame_tracking.get_object_id(cur_frame)
     else:
       fn_object = self.heap_object_tracking.get_by_id(self.function_call_stack[-1].id)
-      cell_vars = fn_object.__code__.co_cellvars
+#      cell_vars = fn_object.__code__.co_cellvars
       free_vars = fn_object.__code__.co_freevars
-      var_index = free_vars.index(arg["free"])
+      var_index = free_vars.index(instr.name)
       cell = fn_object.__closure__[var_index]
       return self.cell_to_frame[self.heap_object_tracking.get_object_id(cell)]
 
@@ -117,6 +117,20 @@ class ShapeLoggingReceiver(EventReceiver):
       self.trace_logger[self.exec_len_key] = 0
     self.trace_logger[self.exec_len_key] += 1
     return key
+
+  def append_to_trace_logger(self, key, rest: Dict = None, opcode = -1, type = None):
+    if bool(opcode == -1) == bool(type == None):
+      raise Exception("Internal error: Either opcode or type argument must be set")
+    record = {
+        "type": type if type else opname[opcode],
+        "exec_idx": self.trace_logger[self.exec_len_key],
+        "indentation": (len(self.loop_stack) + len(self.function_call_stack))
+    }
+    if rest:
+      for k, v in rest.items():
+        record[k] = v
+    self.trace_logger[key].append(record)
+
 
   def on_event(self, stack: List[Any], opindex: int,
       code_id: int, is_post: bool,
@@ -140,105 +154,56 @@ class ShapeLoggingReceiver(EventReceiver):
           function_args_id_stack = self.convert_stack_to_heap_id(stack)
           called_function = self.function_call_stack.pop()
           key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-          self.trace_logger[key].append({
-              "type": opname[opcode],
+          self.append_to_trace_logger(key, {
               "fun_id": self.stringify_maybe_object_id(called_function),
-              "exec_idx": self.trace_logger["exec_len"],
-              "args_id": [self.stringify_maybe_object_id(e) for e in function_args_id_stack],
-              "indentation": (
-                  len(self.loop_stack) + len(self.function_call_stack))
-          })
-
-      elif opname[opcode] == "RETURN_VALUE":
-        pass
+              "args_id": [self.stringify_maybe_object_id(e) for e in function_args_id_stack]}, opcode)
       else:
         object_id_stack = self.convert_stack_to_heap_id(stack)
-
-        if opname[opcode] == "POP_TOP" or opname[opcode] == "POP_JUMP_IF_FALSE" or opname[opcode] == "POP_JUMP_IF_TRUE":
-          if not is_post:
-            pass
-        #         self.print_stack_indent()
-        #print(f"pop top -> {self.stringify_maybe_object_id(stack[0])}")
-        elif opname[opcode] == "ROT_TWO":
-          pass
-        elif opname[opcode] == "LOAD_CONST":
+        if opname[opcode] == "LOAD_CONST":
           rep = self.stringify_maybe_object_id(object_id_stack[0])
           if rep:
             key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-            #self.print_stack_indent(key)
-            self.trace_logger[key].append({
-                "type": "load",
-                "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
-                "exec_idx": self.trace_logger["exec_len"],
-                "indentation": (len(self.loop_stack) + len(self.function_call_stack))
-            }
-            )
+            self.append_to_trace_logger(key, {
+                "obj_id":  self.stringify_maybe_object_id(object_id_stack[0])
+            }, opcode)
         elif opname[opcode] == "LOAD_GLOBAL":
           rep = self.stringify_maybe_object_id(object_id_stack[0])
           if rep:
             key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-            #self.print_stack_indent(key)
-            self.trace_logger[key].append({
-                "type": "load",
+            self.append_to_trace_logger(key, {
                 "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
-                "exec_idx": self.trace_logger["exec_len"],
-                "indentation": (len(self.loop_stack) + len(self.function_call_stack))
-            }
-            )
+                "var_name": instr.arg
+            }, opcode)
         elif opname[opcode] == "LOAD_NAME" or opname[opcode] == "LOAD_FAST":
           rep = self.stringify_maybe_object_id(object_id_stack[0])
           if rep:
+            resolved_frame = self.get_var_reference_frame(cur_frame, instr)
             key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-            #self.print_stack_indent(key)
-            self.trace_logger[key].append({
-                "type": "load",
-                "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
-                "exec_idx": self.trace_logger["exec_len"],
-                "indentation": (len(self.loop_stack) + len(self.function_call_stack))
-            }
-            )
+            self.append_to_trace_logger(key, {
+                "var_name": instr.arg,
+                "frame_id": self.stringify_maybe_object_id(resolved_frame),
+                "obj_id": self.stringify_maybe_object_id(object_id_stack[0])
+            }, opcode)
         elif opname[opcode] == "STORE_NAME" or opname[opcode] == "STORE_FAST":
           rep = self.stringify_maybe_object_id(object_id_stack[0])
           if rep:
+            resolved_frame = self.get_var_reference_frame(cur_frame, instr)
             key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-            #self.print_stack_indent(key)
-            self.trace_logger[key].append({
-                "type": "store",
-                "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
-                "exec_idx": self.trace_logger[self.exec_len_key],
-                "indentation": (len(self.loop_stack) + len(self.function_call_stack))
-            }
-            )
-        elif opname[opcode] == "LOAD_DEREF":
+            self.append_to_trace_logger(key, {
+                "var_name": instr.arg,
+                "frame_id": self.stringify_maybe_object_id(resolved_frame),
+                "obj_id": self.stringify_maybe_object_id(object_id_stack[0])
+            }, opcode)
+        elif opname[opcode] == "LOAD_DEREF" or opname[opcode] == "STORE_DEREF":
           rep = self.stringify_maybe_object_id(object_id_stack[0])
           if rep:
-            resolved_frame = self.get_var_reference_frame(cur_frame, instr.arg)
+            resolved_frame = self.get_var_reference_frame(cur_frame, instr)
             var_name = instr.arg_name
             key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-            #self.print_stack_indent(key)
-            self.trace_logger[key].append({
-                "type": "load",
+            self.append_to_trace_logger(key, {
                 "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
-                "exec_idx": self.trace_logger[self.exec_len_key],
-                "var_name": var_name,
-                "indentation": (len(self.loop_stack) + len(self.function_call_stack))
-            }
-            )
-        elif opname[opcode] == "STORE_DEREF":
-          rep = self.stringify_maybe_object_id(object_id_stack[0])
-          if rep:
-            resolved_frame = self.get_var_reference_frame(cur_frame, instr.arg)
-            var_name = instr.arg_name
-            key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-            #self.print_stack_indent(key)
-            self.trace_logger[key].append({
-                "type": "store",
-                "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
-                "exec_idx": self.trace_logger[self.exec_len_key],
-                "var_name": var_name,
-                "indentation": (len(self.loop_stack) + len(self.function_call_stack))
-            }
-            )
+                "var_name": var_name
+            }, opcode)
         elif opname[opcode] == "BINARY_SUBSCR":
           rep = self.stringify_maybe_object_id(object_id_stack[0])
           if rep:
@@ -250,30 +215,20 @@ class ShapeLoggingReceiver(EventReceiver):
               collection, index = self.pre_op_stack.pop()
 
               key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-              #self.print_stack_indent(key)
-              self.trace_logger[key].append({
-                  "type": "load",
+              self.append_to_trace_logger(key, {
                   "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
-                  "exec_idx": self.trace_logger[self.exec_len_key],
                   "idx_id": self.stringify_maybe_object_id(index),
-                  "base_id": self.stringify_maybe_object_id(collection),
-                  "indentation": (len(self.loop_stack) + len(self.function_call_stack))
-              }
-              )
+                  "base_id": self.stringify_maybe_object_id(collection)
+              }, opcode)
         elif opname[opcode] == "STORE_SUBSCR":
           rep = self.stringify_maybe_object_id(object_id_stack[0])
           if rep:
             key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-            #          self.print_stack_indent(key)
-            self.trace_logger[key].append({
-                "type": "store",
+            self.append_to_trace_logger(key, {
                 "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
-                "exec_idx": self.trace_logger[self.exec_len_key],
                 "idx_id": self.stringify_maybe_object_id(object_id_stack[2]),
-                "base_id": self.stringify_maybe_object_id(object_id_stack[1]),
-                "indentation": (len(self.loop_stack) + len(self.function_call_stack))
-            }
-            )
+                "base_id": self.stringify_maybe_object_id(object_id_stack[1])
+            }, opcode)
         elif opname[opcode] == "LOAD_CLOSURE":
           rep = self.stringify_maybe_object_id(object_id_stack[0])
           if rep:
@@ -286,18 +241,10 @@ class ShapeLoggingReceiver(EventReceiver):
             self.pre_op_stack.append((object_id_stack[0], object_id_stack[1]))
           else:
             cur_inputs = self.pre_op_stack.pop()
-
             key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-            self.trace_logger[key].append({
-                "type": "binary",
-                "exec_idx": self.trace_logger[self.exec_len_key],
-                "oper1_id": self.stringify_maybe_object_id(cur_inputs[0]),
-                "op": opname[opcode],
-                "oper2_id": self.stringify_maybe_object_id(cur_inputs[1]),
+            self.append_to_trace_logger(key, {
                 "obj_id": self.stringify_maybe_object_id(object_id_stack[0]),
-                "indentation": (len(self.loop_stack) + len(self.function_call_stack))
-            }
-            )
-        else:
-          pass
+                "oper1_id": self.stringify_maybe_object_id(cur_inputs[0]),
+                "oper2_id": self.stringify_maybe_object_id(cur_inputs[1]),
+            }, opcode)
     self.already_in_receiver = False

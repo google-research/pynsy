@@ -22,7 +22,6 @@ class HeapObjectTracker(object):
     else:
       self.objects_to_id[id(obj)] = self.next_object_id
       self.id_to_objects[self.next_object_id] = obj
-      
       self.next_object_id += 1
       return self.objects_to_id[id(obj)]
 
