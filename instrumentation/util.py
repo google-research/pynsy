@@ -15,6 +15,8 @@ class ObjectId(object):
       return self.id == other.id
     return False
 
+  def __repr__(self):
+    return '#' + str(self.id)
 
 def get_instrumented_program_frame() -> FrameType:
   is_next_frame = False

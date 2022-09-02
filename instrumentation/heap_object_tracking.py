@@ -1,29 +1,36 @@
 from typing import Any, Dict
 
 class HeapObjectTracker(object):
+  special_key = '_pajama_76538321_'
   objects_to_id: Dict[Any, int]
   id_to_objects: Dict[int, Any]
 
   def __init__(self) -> None:
     self.objects_to_id = {} #WeakKeyDictionary() does not support list, dict
     self.id_to_objects = {} #WeakValueDictionary() does not support list, dict
-    self.next_object_id = 0
+    self.next_object_id = 1
 
   def is_heap_object(self, obj: Any) -> bool:
-    for tpe in [int, str]:
-      if isinstance(obj, tpe):
-        return False
-    
-    return True
-  
+    return hasattr(obj, '__dict__')
+
   def get_object_id(self, obj: Any) -> int:
-    if id(obj) in self.objects_to_id:
-      return self.objects_to_id[id(obj)]
+    if hasattr(obj, '__dict__') and HeapObjectTracker.special_key in obj.__dict__:
+      oid = obj.__dict__[HeapObjectTracker.special_key]
     else:
-      self.objects_to_id[id(obj)] = self.next_object_id
+      oid = id(obj)
+
+    if oid in self.objects_to_id:
+      return self.objects_to_id[oid]
+    else:
+      try:
+        if hasattr(obj, '__dict__'):
+          obj.__dict__[HeapObjectTracker.special_key] = oid
+      except:
+        pass
+      self.objects_to_id[oid] = self.next_object_id
       self.id_to_objects[self.next_object_id] = obj
       self.next_object_id += 1
-      return self.objects_to_id[id(obj)]
+      return self.objects_to_id[oid]
 
   def get_by_id(self, id: int) -> Any:
     return self.id_to_objects[id]
