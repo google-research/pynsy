@@ -36,20 +36,20 @@ class ShapeLoggingReceiver(EventReceiver):
     self.frame_tracking = HeapObjectTracker()
     self.cell_to_frame = {}
     self.pre_op_stack = []
-    self.trace_logger = dict()
+    self.trace_logger = []
     self.exec_len_key = "exec_len"
     self.label_to_instr_id = dict()
     super().__init__()
 
-  def get_label_to_instr_id(self, id_to_orig_bytecode, code_id, instr_arg):
-    if code_id not in self.label_to_instr_id:
-      self.label_to_instr_id[code_id] = dict()
-      for id, instr in enumerate(id_to_orig_bytecode[code_id]):
-        if isinstance(instr, Label):
-          self.label_to_instr_id[code_id][instr] = id + 1
-    #print(f'target_id = {code_id}, {instr_arg}')
-    target_id = self.label_to_instr_id[code_id][instr_arg]
-    return target_id
+  # def get_label_to_instr_id(self, id_to_orig_bytecode, code_id, instr_arg):
+  #   if code_id not in self.label_to_instr_id:
+  #     self.label_to_instr_id[code_id] = dict()
+  #     for id, instr in enumerate(id_to_orig_bytecode[code_id]):
+  #       if isinstance(instr, Label):
+  #         self.label_to_instr_id[code_id][instr] = id + 1
+  #   #print(f'target_id = {code_id}, {instr_arg}')
+  #   target_id = self.label_to_instr_id[code_id][instr_arg]
+  #   return target_id
 
 
 
@@ -94,27 +94,28 @@ class ShapeLoggingReceiver(EventReceiver):
       cell = fn_object.__closure__[var_index]
       return self.cell_to_frame[self.heap_object_tracking.get_object_id(cell)]
 
-  def setup_trace_logger(self, code_id, opindex, id_to_orig_bytecode):
-    key = (code_id, opindex, getlineno(id_to_orig_bytecode, code_id, opindex))
-    if key not in self.trace_logger:
-      self.trace_logger[key] = []
-    if self.exec_len_key not in self.trace_logger:
-      self.trace_logger[self.exec_len_key] = 0
-    self.trace_logger[self.exec_len_key] += 1
-    return key
+  # def setup_trace_logger(self, code_id, opindex, id_to_orig_bytecode):
+  #   key = (code_id, opindex, getlineno(id_to_orig_bytecode, code_id, opindex))
+  #   if key not in self.trace_logger:
+  #     self.trace_logger[key] = []
+  #   if self.exec_len_key not in self.trace_logger:
+  #     self.trace_logger[self.exec_len_key] = 0
+  #   self.trace_logger[self.exec_len_key] += 1
+  #   return key
 
-  def append_to_trace_logger(self, key, rest: Dict = None, opcode = -1, type = None):
+  def append_to_trace_logger(self, loc, rest: Dict = None, opcode = -1, type = None):
     if bool(opcode == -1) == bool(type == None):
       raise Exception("Internal error: Either opcode or type argument must be set")
     record = {
+        "loc": loc, # (method id, instruction id, line number)
         "type": type if type else opname[opcode],
-        "exec_idx": self.trace_logger[self.exec_len_key],
+        "exec_idx": len(self.trace_logger),
         "indentation": (len(self.loop_stack) + len(self.function_call_stack))
     }
     if rest:
       for k, v in rest.items():
         record[k] = v
-    self.trace_logger[key].append(record)
+    self.trace_logger.append(record)
 
 
   def on_event(self, stack: List[Any], opindex: int,
@@ -138,30 +139,30 @@ class ShapeLoggingReceiver(EventReceiver):
         else:
           function_args_id_stack = self.convert_stack_to_heap_id(stack)
           called_function = self.function_call_stack.pop()
-          key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-          self.append_to_trace_logger(key, {
+          loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
+          self.append_to_trace_logger(loc, {
               "fun_id": called_function,
               "args_id": function_args_id_stack}, opcode)
       else:
         object_id_stack = self.convert_stack_to_heap_id(stack)
         if opname[opcode] == "LOAD_CONST":
           rep = object_id_stack[0]
-          key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-          self.append_to_trace_logger(key, {
+          loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
+          self.append_to_trace_logger(loc, {
               "obj_id":  rep
           }, opcode)
         elif opname[opcode] == "LOAD_GLOBAL":
           rep = object_id_stack[0]
-          key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-          self.append_to_trace_logger(key, {
+          loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
+          self.append_to_trace_logger(loc, {
               "obj_id": rep,
               "var_name": instr.arg
           }, opcode)
         elif opname[opcode] == "LOAD_NAME" or opname[opcode] == "LOAD_FAST":
           rep = object_id_stack[0]
           resolved_frame = self.get_var_reference_frame(cur_frame, instr)
-          key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-          self.append_to_trace_logger(key, {
+          loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
+          self.append_to_trace_logger(loc, {
               "var_name": instr.arg,
               "frame_id": self.get_repr(resolved_frame),
               "obj_id": rep
@@ -169,8 +170,8 @@ class ShapeLoggingReceiver(EventReceiver):
         elif opname[opcode] == "STORE_NAME" or opname[opcode] == "STORE_FAST":
           rep = object_id_stack[0]
           resolved_frame = self.get_var_reference_frame(cur_frame, instr)
-          key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-          self.append_to_trace_logger(key, {
+          loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
+          self.append_to_trace_logger(loc, {
               "var_name": instr.arg,
               "frame_id": self.get_repr(resolved_frame),
               "obj_id": rep
@@ -178,8 +179,8 @@ class ShapeLoggingReceiver(EventReceiver):
         elif opname[opcode] == "LOAD_DEREF" or opname[opcode] == "STORE_DEREF":
           rep = object_id_stack[0]
           var_name = instr.arg.name
-          key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-          self.append_to_trace_logger(key, {
+          loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
+          self.append_to_trace_logger(loc, {
               "obj_id": rep,
               "var_name": var_name
           }, opcode)
@@ -191,16 +192,16 @@ class ShapeLoggingReceiver(EventReceiver):
             self.pre_op_stack.append((collection, index))
           else:
             collection, index = self.pre_op_stack.pop()
-            key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-            self.append_to_trace_logger(key, {
+          loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
+          self.append_to_trace_logger(loc, {
                 "obj_id": rep,
                 "idx_id": index,
                 "base_id": collection
             }, opcode)
         elif opname[opcode] == "STORE_SUBSCR":
           rep = object_id_stack[0]
-          key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-          self.append_to_trace_logger(key, {
+          loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
+          self.append_to_trace_logger(loc, {
               "obj_id": rep,
               "idx_id": object_id_stack[2],
               "base_id": object_id_stack[1]
@@ -217,10 +218,10 @@ class ShapeLoggingReceiver(EventReceiver):
             self.pre_op_stack.append((object_id_stack[0], object_id_stack[1]))
           else:
             cur_inputs = self.pre_op_stack.pop()
-            key = self.setup_trace_logger(code_id, opindex, id_to_orig_bytecode)
-            self.append_to_trace_logger(key, {
-                "obj_id": object_id_stack[0],
-                "oper1_id": cur_inputs[0],
-                "oper2_id": cur_inputs[1],
-            }, opcode)
+            loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
+            self.append_to_trace_logger(loc, {
+                  "obj_id": object_id_stack[0],
+                  "oper1_id": cur_inputs[0],
+                  "oper2_id": cur_inputs[1],
+              }, opcode)
     self.already_in_receiver = False

@@ -37,8 +37,8 @@ with receiver:
   function_under_test()
 
 
-for k, v in receiver.trace_logger.items():
-  print(k, ": ", v)
+for record in receiver.trace_logger:
+  print(record)
 
 
 # Run ./run_instrumented.py demo.mnist.init_fun
