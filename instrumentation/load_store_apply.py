@@ -15,7 +15,7 @@ from dis import Instruction
 def getlineno(id_to_orig_bytecode, code_id, opindex):
   return str(id_to_orig_bytecode[code_id][opindex].lineno)
 
-class ShapeLoggingReceiver(EventReceiver):
+class LoadStoreApplyReceiver(EventReceiver):
   loop_stack: List[Any]
   function_call_stack: List[Any]
   heap_object_tracking: HeapObjectTracker

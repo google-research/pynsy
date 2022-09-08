@@ -2,7 +2,7 @@
 from dis import opname
 
 from instrumentation.module_loader import PatchingPathFinder
-from instrumentation.shape_logging_receiver import ShapeLoggingReceiver
+from instrumentation.load_store_apply import LoadStoreApplyReceiver
 import os, sys
 import config
 
@@ -32,7 +32,7 @@ def import_method_from_module(s, isMethod=True):
 
 
 function_under_test = import_method_from_module(sys.argv[2], True)
-receiver = ShapeLoggingReceiver()
+receiver = LoadStoreApplyReceiver()
 config.custom_analyzer = import_method_from_module(sys.argv[1], False)
 
 sys.argv = sys.argv[2:]
