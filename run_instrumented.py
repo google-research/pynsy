@@ -3,42 +3,43 @@ from dis import opname
 
 from instrumentation.module_loader import PatchingPathFinder
 from instrumentation.shape_logging_receiver import ShapeLoggingReceiver
-import importlib.machinery
-import importlib.util
 import os, sys
-import importlib
+import config
 
-# Import module
-def load_main_python_program(filepath):
-  modulename = os.path.basename(filepath)
-  loader = importlib.machinery.SourceFileLoader(modulename, filepath)
-  spec = importlib.util.spec_from_loader( modulename, loader )
-  mymodule = importlib.util.module_from_spec( spec )
-  return loader, mymodule
-
-#loader, mymodule = load_main_python_program(sys.argv[1])
 
 
 patcher = PatchingPathFinder()
 patcher.install()
 
-p_m_f = sys.argv[1].split(".")
-m = p_m_f[-2]
-f = p_m_f[-1]
-p = '.'.join(p_m_f[:-1])
-print(p, m, f)
-PUT = __import__(p, globals(), locals(), [], 0)
-module_under_test = getattr(PUT, m)
-function_under_test = getattr(module_under_test, f)
 
+def import_method_from_module(s, isMethod=True):
+  p_m_f = s.split(".")
+  if isMethod:
+    f = p_m_f.pop()
+  else:
+    f = None
+#  m = p_m_f.pop()
+  m = p_m_f[-1]
+  p = '.'.join(p_m_f)
+  print(p, f)
+  PUT = __import__(p, globals(), locals(), [], 0)
+  module_to_load = getattr(PUT, m)
+  if isMethod:
+    method_to_run = getattr(module_to_load, f)
+    return method_to_run
+  else:
+    return module_to_load
+
+
+function_under_test = import_method_from_module(sys.argv[2], True)
 receiver = ShapeLoggingReceiver()
+config.custom_analyzer = import_method_from_module(sys.argv[1], False)
+
+sys.argv = sys.argv[2:]
 
 with receiver:
   function_under_test()
 
 
-for record in receiver.trace_logger:
-  print(record)
+config.custom_analyzer.process_termination(receiver.trace_logger)
 
-
-# Run ./run_instrumented.py demo.mnist.init_fun

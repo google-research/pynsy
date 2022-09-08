@@ -1,10 +1,6 @@
 from dis import opname, opmap
 from types import FrameType
-from typing import Optional
-
-from bytecode import Bytecode
-import inspect
-
+import config
 from .event_receiver import EventReceiver
 from .heap_object_tracking import HeapObjectTracker
 from .instrument import binary_ops
@@ -56,19 +52,11 @@ class ShapeLoggingReceiver(EventReceiver):
   def show_op_index(self, code_id: int, op_index: int, id_to_orig_bytecode: Dict[int, Bytecode]) -> str:
     return "op #" + str(op_index) + " (" + str(id_to_orig_bytecode[code_id][op_index]) + ")"
 
-  def my_abstraction(self, obj):
-    if hasattr(obj, 'shape'):
-      return str(obj.shape)
-    elif isinstance(obj, int) or  isinstance(obj, float) or isinstance(obj, str):
-      return str(obj)
-    else:
-      return 'obj'
-
   def get_repr(self, obj):
     if hasattr(obj, '__dict__'):
-      return ObjectId(self.heap_object_tracking.get_object_id(obj)), type(obj), self.my_abstraction(obj)
+      return ObjectId(self.heap_object_tracking.get_object_id(obj)), type(obj), config.custom_analyzer.abstraction(obj)
     else:
-      return ObjectId(0), type(obj), self.my_abstraction(obj)
+      return ObjectId(0), type(obj), config.custom_analyzer.abstraction(obj)
 
 
   def handle_jump_target(self, target_op_index: int) -> None:
@@ -107,9 +95,11 @@ class ShapeLoggingReceiver(EventReceiver):
     if bool(opcode == -1) == bool(type == None):
       raise Exception("Internal error: Either opcode or type argument must be set")
     record = {
-        "loc": loc, # (method id, instruction id, line number)
+        "method_id": loc[0], # (method id, instruction id, line number)
+        "instruction_id": loc[1], # (method id, instruction id, line number)
+        "lineno": loc[2],
         "type": type if type else opname[opcode],
-        "exec_idx": len(self.trace_logger),
+        "execution_index": len(self.trace_logger),
         "indentation": (len(self.loop_stack) + len(self.function_call_stack))
     }
     if rest:
@@ -138,51 +128,53 @@ class ShapeLoggingReceiver(EventReceiver):
           self.function_call_stack.append(function_args_id_stack[0])
         else:
           function_args_id_stack = self.convert_stack_to_heap_id(stack)
+#          called_function_name = stack[0].__name__
           called_function = self.function_call_stack.pop()
           loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
           self.append_to_trace_logger(loc, {
-              "fun_id": called_function,
-              "args_id": function_args_id_stack}, opcode)
+              "function": called_function,
+              "function_name": str(stack[0]),
+              "args_list": function_args_id_stack}, opcode)
       else:
         object_id_stack = self.convert_stack_to_heap_id(stack)
         if opname[opcode] == "LOAD_CONST":
           rep = object_id_stack[0]
           loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
           self.append_to_trace_logger(loc, {
-              "obj_id":  rep
+              "result":  rep
           }, opcode)
         elif opname[opcode] == "LOAD_GLOBAL":
           rep = object_id_stack[0]
           loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
           self.append_to_trace_logger(loc, {
-              "obj_id": rep,
-              "var_name": instr.arg
+              "var_name": instr.arg,
+              "result": rep,
           }, opcode)
         elif opname[opcode] == "LOAD_NAME" or opname[opcode] == "LOAD_FAST":
           rep = object_id_stack[0]
           resolved_frame = self.get_var_reference_frame(cur_frame, instr)
           loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
           self.append_to_trace_logger(loc, {
+              "frame": self.get_repr(resolved_frame),
               "var_name": instr.arg,
-              "frame_id": self.get_repr(resolved_frame),
-              "obj_id": rep
+              "result": rep
           }, opcode)
         elif opname[opcode] == "STORE_NAME" or opname[opcode] == "STORE_FAST":
           rep = object_id_stack[0]
           resolved_frame = self.get_var_reference_frame(cur_frame, instr)
           loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
           self.append_to_trace_logger(loc, {
+              "frame": self.get_repr(resolved_frame),
               "var_name": instr.arg,
-              "frame_id": self.get_repr(resolved_frame),
-              "obj_id": rep
+              "operand": rep
           }, opcode)
         elif opname[opcode] == "LOAD_DEREF" or opname[opcode] == "STORE_DEREF":
           rep = object_id_stack[0]
           var_name = instr.arg.name
           loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
           self.append_to_trace_logger(loc, {
-              "obj_id": rep,
-              "var_name": var_name
+              "var_name": var_name,
+              "result" if opname[opcode] == "LOAD_DEREF""obj_id" else "operand": rep,
           }, opcode)
         elif opname[opcode] == "BINARY_SUBSCR":
           rep = object_id_stack[0]
@@ -194,17 +186,17 @@ class ShapeLoggingReceiver(EventReceiver):
             collection, index = self.pre_op_stack.pop()
           loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
           self.append_to_trace_logger(loc, {
-                "obj_id": rep,
-                "idx_id": index,
-                "base_id": collection
+                "base": collection
+,               "index": index,
+                "result": rep,
             }, opcode)
         elif opname[opcode] == "STORE_SUBSCR":
           rep = object_id_stack[0]
           loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
           self.append_to_trace_logger(loc, {
-              "obj_id": rep,
-              "idx_id": object_id_stack[2],
-              "base_id": object_id_stack[1]
+              "index": object_id_stack[2],
+              "base": object_id_stack[1],
+              "operand": rep,
           }, opcode)
         elif opname[opcode] == "LOAD_CLOSURE":
           rep = object_id_stack[0]
@@ -220,8 +212,8 @@ class ShapeLoggingReceiver(EventReceiver):
             cur_inputs = self.pre_op_stack.pop()
             loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
             self.append_to_trace_logger(loc, {
-                  "obj_id": object_id_stack[0],
-                  "oper1_id": cur_inputs[0],
-                  "oper2_id": cur_inputs[1],
+                "operand1": cur_inputs[0],
+                "operand2": cur_inputs[1],
+                "result": object_id_stack[0],
               }, opcode)
     self.already_in_receiver = False

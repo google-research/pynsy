@@ -3,6 +3,17 @@ import inspect
 
 from types import CodeType, FrameType
 from typing import Any
+import json
+
+def serialize(obj):
+  if isinstance(obj, ObjectId):
+    serial = obj.id
+    return serial
+  elif isinstance(obj, type):
+    serial = str(obj)
+    return serial
+  else:
+    return json.dumps(obj)
 
 
 # newtype to track object IDs
@@ -17,6 +28,7 @@ class ObjectId(object):
 
   def __repr__(self):
     return '#' + str(self.id)
+
 
 def get_instrumented_program_frame() -> FrameType:
   is_next_frame = False

@@ -91,6 +91,7 @@ def init_fun():
     epoch_time = time.time() - start_time
 
 #init_fun()
+#init_fun()
   #   train_acc = accuracy(params, (train_images, train_labels))
   #   test_acc = accuracy(params, (test_images, test_labels))
   #   print("Epoch {} in {:0.2f} sec".format(epoch, epoch_time))

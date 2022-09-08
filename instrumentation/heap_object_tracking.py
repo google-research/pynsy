@@ -33,4 +33,7 @@ class HeapObjectTracker(object):
       return self.objects_to_id[oid]
 
   def get_by_id(self, id: int) -> Any:
-    return self.id_to_objects[id]
+    if id in self.id_to_objects:
+      return self.id_to_objects[id]
+    else:
+      return None
