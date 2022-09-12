@@ -12,7 +12,7 @@ def abstraction(obj):
     return 'obj'
 
 def process_event(record):
-  return True
+  return record
 
 def process_termination(record_list):
   for record in record_list:

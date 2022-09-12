@@ -105,7 +105,9 @@ class LoadStoreApplyReceiver(EventReceiver):
     if rest:
       for k, v in rest.items():
         record[k] = v
-    self.trace_logger.append(record)
+    record = config.custom_analyzer.process_event(record)
+    if record is not None:
+      record = self.trace_logger.append(record)
 
 
   def on_event(self, stack: List[Any], opindex: int,

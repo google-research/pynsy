@@ -3,7 +3,7 @@ from dis import opname
 
 from instrumentation.module_loader import PatchingPathFinder
 from instrumentation.load_store_apply import LoadStoreApplyReceiver
-import os, sys
+import sys
 import config
 
 
@@ -18,7 +18,6 @@ def import_method_from_module(s, isMethod=True):
     f = p_m_f.pop()
   else:
     f = None
-#  m = p_m_f.pop()
   m = p_m_f[-1]
   p = '.'.join(p_m_f)
   print(p, f)
