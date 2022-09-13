@@ -253,7 +253,7 @@ def get_args_num(n_operands: int, input: Instr) -> int:
     return n_operands
 
 
-def instrument_bytecode(byte_code: Bytecode, code_id: int = 0) -> Bytecode:
+def instrument_bytecode(byte_code: Bytecode, method_id: int = 0) -> Bytecode:
   instrumented_byte_code = clone_bytecode_empty_body(byte_code)
 
   label_to_op_index = {}
@@ -268,7 +268,7 @@ def instrument_bytecode(byte_code: Bytecode, code_id: int = 0) -> Bytecode:
       emit_instrument(
           instrumented_byte_code, instr, instruction_id,
           get_args_num(pre_instrumented_ops[instr.name], instr),
-          code_id, False
+          method_id, False
       )
 
     if isinstance(instr, Instr) \
@@ -282,22 +282,22 @@ def instrument_bytecode(byte_code: Bytecode, code_id: int = 0) -> Bytecode:
     if isinstance(instr, Label):
       emit_instrument(
           instrumented_byte_code, byte_code[instruction_id + 1], instruction_id,
-          0, code_id, True
+          0, method_id, True
       )
 
     if isinstance(instr, Instr) and instr.name in post_instrumented_ops:
       emit_instrument(
           instrumented_byte_code, instr, instruction_id,
           get_args_num(post_instrumented_ops[instr.name], instr),
-          code_id, True
+          method_id, True
       )
 
   return instrumented_byte_code
 
 
-def instrument_codeobject(code: CodeType, code_id: int = 0) -> Bytecode:
-  return instrument_bytecode(Bytecode.from_code(code), code_id)
+def instrument_codeobject(code: CodeType, method_id: int = 0) -> Bytecode:
+  return instrument_bytecode(Bytecode.from_code(code), method_id)
 
 
-def instrument_source(source: str, code_id: int) -> Bytecode:
-  return instrument_codeobject(compile(source, "<string>", "exec"), code_id)
+def instrument_source(source: str, method_id: int) -> Bytecode:
+  return instrument_codeobject(compile(source, "<string>", "exec"), method_id)

@@ -12,8 +12,8 @@ from bytecode import Bytecode, CellVar, FreeVar, Instr, Label, UNSET
 from dis import Instruction
 
 
-def getlineno(id_to_orig_bytecode, code_id, opindex):
-  return str(id_to_orig_bytecode[code_id][opindex].lineno)
+def getlineno(id_to_orig_bytecode, method_id, instr_id):
+  return str(id_to_orig_bytecode[method_id][instr_id].lineno)
 
 class LoadStoreApplyReceiver(EventReceiver):
   loop_stack: List[Any]
@@ -71,9 +71,10 @@ class LoadStoreApplyReceiver(EventReceiver):
     if bool(opcode == -1) == bool(type == None):
       raise Exception("Internal error: Either opcode or type argument must be set")
     record = {
-        "method_id": loc[0], # (method id, instruction id, line number)
-        "instruction_id": loc[1], # (method id, instruction id, line number)
-        "lineno": loc[2],
+        "module_name": loc[0],
+        "method_id": loc[1],
+        "instruction_id": loc[2],
+        "lineno": loc[3],
         "before": before,
         "type": type if type else opname[opcode],
         "execution_index": len(self.trace_logger),
@@ -87,22 +88,22 @@ class LoadStoreApplyReceiver(EventReceiver):
       self.trace_logger.append(record)
 
 
-  def on_event(self, stack: List[Any], opindex: int,
-      code_id: int, is_post: bool,
+  def on_event(self, stack: List[Any], instr_id: int,
+      method_id: int, module_name: str, is_post: bool,
       id_to_orig_bytecode: Dict[int, Bytecode]) -> None:
     if self.already_in_receiver:
       return
     self.already_in_receiver = True
 
     cur_frame = get_instrumented_program_frame()
-    instr = id_to_orig_bytecode[code_id][opindex]
+    instr = id_to_orig_bytecode[method_id][instr_id]
 
     if isinstance(instr, Label):
-      self.handle_jump_target(opindex + 1)
+      self.handle_jump_target(instr_id + 1)
     else:
       opcode = instr.opcode
       object_id_stack = self.convert_stack_to_heap_id(stack)
-      loc = (code_id, opindex, getlineno(id_to_orig_bytecode ,code_id, opindex))
+      loc = (module_name, method_id, instr_id, getlineno(id_to_orig_bytecode ,method_id, instr_id))
       if opname[opcode] == "CALL_FUNCTION":
         if not is_post:
           self.function_call_stack.append(object_id_stack[0])

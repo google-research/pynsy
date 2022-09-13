@@ -2,6 +2,7 @@ import sys
 from importlib.abc import MetaPathFinder, Loader
 from importlib.machinery import ModuleSpec
 from types import ModuleType
+import config
 
 from .instrument_nested import extract_all_codeobjects, instrument_extracted
 from .event_receiver import call_all_receivers
@@ -43,12 +44,16 @@ class PatchingLoader(Loader):
         print("[Python Analysis] Instrumenting module " + self.name)
         id_to_bytecode, code_to_id = extract_all_codeobjects(module_code)
         id_to_bytecode_new_codeobjects = instrument_extracted(id_to_bytecode, code_to_id)
-
+        if not hasattr(config, "static_program_info"):
+          config.static_program_info = dict()
+        if self.name not in config.static_program_info:
+          config.static_program_info[self.name] = id_to_bytecode
         instrumented = id_to_bytecode_new_codeobjects[code_to_id[module_code]]
+        module_name = self.name
 
-        def py_instrument_receiver(stack: List[Any], opindex: int, code_id: int, is_post: bool) -> None:
-          # print(code_id, opindex, id_to_bytecode[code_id][opindex])
-          call_all_receivers(stack, opindex, code_id, is_post, id_to_bytecode)
+        def py_instrument_receiver(stack: List[Any], instr_id: int, method_id: int, is_post: bool) -> None:
+          # print(method_id, instr_id, id_to_bytecode[method_id][instr_id])
+          call_all_receivers(stack, instr_id, method_id, is_post, id_to_bytecode, module_name)
         module.__dict__["py_instrument_receiver"] = py_instrument_receiver
         exec(instrumented.to_code(), module.__dict__)
         self.finder.patched_modules.append(module.__name__)

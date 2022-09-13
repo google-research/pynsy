@@ -1,5 +1,8 @@
 import json
 from instrumentation.util import serialize
+import config
+# config.static_program_info contains the static bytecode information
+# it maps module_name->method_id->instr_id->Bytecode
 
 def abstraction(obj):
   if hasattr(obj, 'shape'):
