@@ -1,7 +1,7 @@
 from types import CodeType
 
-from bytecode import Bytecode, CellVar, FreeVar, Instr, Label, UNSET
-
+from bytecode import Bytecode, Instr, Label
+import logging
 from .util import clone_bytecode_empty_body
 
 from typing import Any, Dict, Optional, Union, cast
@@ -94,6 +94,8 @@ pre_instrumented_ops = {
     "POP_JUMP_IF_FALSE": 1,
     "ROT_TWO": 2,
     "CALL_FUNCTION": -1,
+    "CALL_METHOD": -1,
+    "CALL_FUNCTION_KW": -1,
     "RETURN_VALUE": 1,
 }
 
@@ -138,14 +140,16 @@ post_instrumented_ops = {
     "LOAD_ATTR": 1,
     "LOAD_CONST": 1,
     "LOAD_GLOBAL": 1,
-    "CALL_FUNCTION": 1
+    "CALL_FUNCTION": 1,
+    "CALL_FUNCTION_KW": 1,
+    "CALL_METHOD": 1
 }
 
 
 def emit_instrument(
     instrumented: Bytecode,
-    instr: Instr, i: int, stacksize: int,
-    code_id: int, is_post: bool
+    instr: Instr, instruction_id: int, stacksize: int,
+    method_id: int, is_post: bool
 ) -> None:
 
   if stacksize > 0:
@@ -183,13 +187,13 @@ def emit_instrument(
 
   instrumented.append(Instr(
       name="LOAD_CONST",
-      arg=i,
+      arg=instruction_id,
       lineno=instr.lineno
   ))
 
   instrumented.append(Instr(
       name="LOAD_CONST",
-      arg=code_id,
+      arg=method_id,
       lineno=instr.lineno
   ))
 
@@ -253,16 +257,16 @@ def instrument_bytecode(byte_code: Bytecode, code_id: int = 0) -> Bytecode:
   instrumented_byte_code = clone_bytecode_empty_body(byte_code)
 
   label_to_op_index = {}
-  for i in range(len(byte_code)):
-    if isinstance(byte_code[i], Label):
-      label_to_op_index[byte_code[i]] = i + 1
+  for instruction_id in range(len(byte_code)):
+    if isinstance(byte_code[instruction_id], Label):
+      label_to_op_index[byte_code[instruction_id]] = instruction_id + 1
 
-  for i in range(len(byte_code)):
-    instr = byte_code[i]
+  for instruction_id in range(len(byte_code)):
+    instr = byte_code[instruction_id]
 
     if isinstance(instr, Instr) and instr.name in pre_instrumented_ops:
       emit_instrument(
-          instrumented_byte_code, instr, i,
+          instrumented_byte_code, instr, instruction_id,
           get_args_num(pre_instrumented_ops[instr.name], instr),
           code_id, False
       )
@@ -271,19 +275,19 @@ def instrument_bytecode(byte_code: Bytecode, code_id: int = 0) -> Bytecode:
         and instr.name not in pre_instrumented_ops \
         and instr.name not in post_instrumented_ops:
       pass
-      # print(f"IGNORING OPERATION {instr.name}")
+      logging.warning(f"IGNORING OPERATION {instr.name}")
 
     instrumented_byte_code.append(instr)
 
     if isinstance(instr, Label):
       emit_instrument(
-          instrumented_byte_code, byte_code[i + 1], i,
+          instrumented_byte_code, byte_code[instruction_id + 1], instruction_id,
           0, code_id, True
       )
 
     if isinstance(instr, Instr) and instr.name in post_instrumented_ops:
       emit_instrument(
-          instrumented_byte_code, instr, i,
+          instrumented_byte_code, instr, instruction_id,
           get_args_num(post_instrumented_ops[instr.name], instr),
           code_id, True
       )
