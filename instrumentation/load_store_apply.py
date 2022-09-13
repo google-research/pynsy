@@ -38,10 +38,7 @@ class LoadStoreApplyReceiver(EventReceiver):
     super().__init__()
 
   def get_repr(self, obj):
-    if hasattr(obj, '__dict__'):
-      return ObjectId(self.heap_object_tracking.get_object_id(obj)), type(obj), config.custom_analyzer.abstraction(obj)
-    else:
-      return ObjectId(0), type(obj), config.custom_analyzer.abstraction(obj)
+    return ObjectId(self.heap_object_tracking.get_object_id(obj)), type(obj), config.custom_analyzer.abstraction(obj)
 
 
   def handle_jump_target(self, target_op_index: int) -> None:
@@ -147,6 +144,7 @@ class LoadStoreApplyReceiver(EventReceiver):
         else:
           called_function = self.function_call_stack.pop()
           self.append_to_trace_logger(loc, False, {
+              "tyep": "RETURN_FUNCTION_KW",
               "function": called_function,
               "result": object_id_stack[0]}, opcode)
       elif opname[opcode] == "LOAD_CONST":
