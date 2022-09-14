@@ -144,7 +144,7 @@ class LoadStoreApplyReceiver(EventReceiver):
         else:
           called_function = self.function_call_stack.pop()
           self.append_to_trace_logger(loc, False, {
-              "tyep": "RETURN_FUNCTION_KW",
+              "type": "RETURN_FUNCTION_KW",
               "function": called_function,
               "result": object_id_stack[0]}, opcode)
       elif opname[opcode] == "LOAD_CONST":
