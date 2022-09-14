@@ -49,6 +49,8 @@ unary_ops = {
     "UNARY_NEGATIVE": 1,
     "UNARY_NOT": 1,
     "UNARY_INVERT": 1,
+    "GET_ITER": 1,
+    "GET_YIELD_FROM_ITER": 1
 }
 
 pre_instrumented_ops = {
@@ -56,6 +58,8 @@ pre_instrumented_ops = {
     "UNARY_NEGATIVE": 1,
     "UNARY_NOT": 1,
     "UNARY_INVERT": 1,
+    "GET_ITER": 1,
+    "GET_YIELD_FROM_ITER": 1,
 
     "BINARY_POWER": 2,
     "BINARY_MULTIPLY": 2,
@@ -115,6 +119,8 @@ post_instrumented_ops = {
     "UNARY_NEGATIVE": 1,
     "UNARY_NOT": 1,
     "UNARY_INVERT": 1,
+    "GET_ITER": 1,
+    "GET_YIELD_FROM_ITER": 1,
 
     "BINARY_POWER": 1,
     "BINARY_MULTIPLY": 1,

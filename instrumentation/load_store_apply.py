@@ -166,12 +166,26 @@ class LoadStoreApplyReceiver(EventReceiver):
             "var_name": instr.arg,
             "result": rep
         }, opcode)
+      elif opname[opcode] == "LOAD_ATTR":
+        rep = object_id_stack[0]
+        self.append_to_trace_logger(loc, False, {
+            "attr_name": instr.arg,
+            "result": rep,
+        }, opcode)
       elif opname[opcode] == "STORE_NAME" or opname[opcode] == "STORE_FAST":
         rep = object_id_stack[0]
         resolved_frame = self.get_var_reference_frame(cur_frame, instr)
         self.append_to_trace_logger(loc, True, {
             "frame": self.get_repr(resolved_frame),
             "var_name": instr.arg,
+            "operand": rep
+        }, opcode)
+      elif opname[opcode] == "STORE_ATTR":
+        rep = object_id_stack[0]
+        resolved_frame = self.get_var_reference_frame(cur_frame, instr)
+        self.append_to_trace_logger(loc, True, {
+            "frame": self.get_repr(resolved_frame),
+            "attr_name": instr.arg,
             "operand": rep
         }, opcode)
       elif opname[opcode] == "LOAD_DEREF":
