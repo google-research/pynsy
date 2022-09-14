@@ -44,11 +44,19 @@ binary_ops = {
     "MAKE_FUNCTION": 2,
 }
 
+unary_ops = {
+    "UNARY_POSITIVE": 1,
+    "UNARY_NEGATIVE": 1,
+    "UNARY_NOT": 1,
+    "UNARY_INVERT": 1,
+}
+
 pre_instrumented_ops = {
-    # "UNARY_POSITIVE": 1,
-    # "UNARY_NEGATIVE": 1,
-    # "UNARY_NOT": 1,
-    # "UNARY_INVERT": 1,
+    "UNARY_POSITIVE": 1,
+    "UNARY_NEGATIVE": 1,
+    "UNARY_NOT": 1,
+    "UNARY_INVERT": 1,
+
     "BINARY_POWER": 2,
     "BINARY_MULTIPLY": 2,
     "BINARY_MATRIX_MULTIPLY": 2,
@@ -83,16 +91,19 @@ pre_instrumented_ops = {
     "MAKE_FUNCTION": 2,
 
     "SETUP_LOOP": 0,
+
     "STORE_NAME": 1,
     "STORE_FAST": 1,
     "STORE_DEREF": 1,
     "STORE_ATTR": 2,
     "STORE_SUBSCR": 3,
-    "LOAD_ATTR": 1,
+    "STORE_GLOBAL": 1,
+
     "POP_TOP": 1,
     "POP_JUMP_IF_TRUE": 1,
     "POP_JUMP_IF_FALSE": 1,
     "ROT_TWO": 2,
+
     "CALL_FUNCTION": -1,
     "CALL_METHOD": -1,
     "CALL_FUNCTION_KW": -1,
@@ -100,6 +111,11 @@ pre_instrumented_ops = {
 }
 
 post_instrumented_ops = {
+    "UNARY_POSITIVE": 1,
+    "UNARY_NEGATIVE": 1,
+    "UNARY_NOT": 1,
+    "UNARY_INVERT": 1,
+
     "BINARY_POWER": 1,
     "BINARY_MULTIPLY": 1,
     "BINARY_MATRIX_MULTIPLY": 1,
@@ -140,6 +156,7 @@ post_instrumented_ops = {
     "LOAD_ATTR": 1,
     "LOAD_CONST": 1,
     "LOAD_GLOBAL": 1,
+
     "CALL_FUNCTION": 1,
     "CALL_FUNCTION_KW": 1,
     "CALL_METHOD": 1

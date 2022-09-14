@@ -4,11 +4,11 @@ import config
 from .event_receiver import EventReceiver
 from .heap_object_tracking import HeapObjectTracker
 from .instrument import binary_ops
+from .instrument import unary_ops
 from .util import ObjectId, get_instrumented_program_frame
 
 from typing import Any, Dict, List, Union, Optional
-from typing_extensions import Literal
-from bytecode import Bytecode, CellVar, FreeVar, Instr, Label, UNSET
+from bytecode import Bytecode, Label
 from dis import Instruction
 
 
@@ -225,4 +225,13 @@ class LoadStoreApplyReceiver(EventReceiver):
               "operand2": cur_inputs[1],
               "result": object_id_stack[0],
             }, opcode)
+      elif opname[opcode] in unary_ops:
+        if not is_post:
+          self.pre_op_stack.append(object_id_stack[0])
+        else:
+          cur_input = self.pre_op_stack.pop()
+          self.append_to_trace_logger(loc, False, {
+              "operand": cur_input,
+              "result": object_id_stack[0],
+          }, opcode)
     self.already_in_receiver = False
