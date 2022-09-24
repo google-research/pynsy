@@ -32,6 +32,9 @@ class ObjectId(object):
   def __init__(self, id: int) -> None:
     self.id = id
 
+  def __hash__(self):
+    return self.id
+
   def __eq__(self, other: Any) -> bool:
     if isinstance(other, ObjectId):
       return self.id == other.id

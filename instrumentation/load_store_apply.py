@@ -38,8 +38,11 @@ class LoadStoreApplyReceiver(EventReceiver):
     super().__init__()
 
   def get_repr(self, obj):
-    return ObjectId(self.heap_object_tracking.get_object_id(obj)), type(obj), config.custom_analyzer.abstraction(obj)
-
+    ignore, repr = config.custom_analyzer.abstraction(obj)
+    if not ignore:
+      return ObjectId(self.heap_object_tracking.get_object_id(obj)), type(obj), repr
+    else:
+      return None
 
   def handle_jump_target(self, target_op_index: int) -> None:
     if target_op_index in self.loop_stack:
@@ -224,7 +227,7 @@ class LoadStoreApplyReceiver(EventReceiver):
         }, opcode)
       elif opname[opcode] == "LOAD_CLOSURE":
         rep = object_id_stack[0]
-        if isinstance(rep[0], ObjectId):
+        if rep is not None and isinstance(rep[0], ObjectId):
           if not object_id_stack[0][0].id in self.cell_to_frame:
             self.cell_to_frame[object_id_stack[0][0].id] = self.frame_tracking.get_object_id(cur_frame)
       elif opname[opcode] == "SETUP_LOOP":
