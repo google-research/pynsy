@@ -111,7 +111,9 @@ class LoadStoreApplyReceiver(EventReceiver):
           self.append_to_trace_logger(loc, True, {
               "function": called_function,
               "function_name": str(stack[0]),
-              "args_list": object_id_stack[1:]}, opcode)
+              "args_list": object_id_stack[1:],
+              "indentation": (len(self.loop_stack) + len(self.function_call_stack)) - 1
+          }, opcode)
         else:
           object_id_stack = self.convert_stack_to_heap_id(stack)
           called_function = self.function_call_stack.pop()
@@ -126,7 +128,9 @@ class LoadStoreApplyReceiver(EventReceiver):
           self.append_to_trace_logger(loc, True, {
               "function": called_function,
               "function_name": str(stack[0]),
-              "args_list": object_id_stack[1:]}, opcode)
+              "args_list": object_id_stack[1:],
+              "indentation": (len(self.loop_stack) + len(self.function_call_stack)) - 1
+          }, opcode)
         else:
           object_id_stack = self.convert_stack_to_heap_id(stack)
           called_function = self.function_call_stack.pop()
@@ -143,7 +147,9 @@ class LoadStoreApplyReceiver(EventReceiver):
           self.append_to_trace_logger(loc, True, {
               "function": called_function,
               "function_name": str(stack[0]),
-              "args_list": object_id_stack[1:-1] + [keys,]}, opcode)
+              "args_list": object_id_stack[1:-1] + [keys,],
+              "indentation": (len(self.loop_stack) + len(self.function_call_stack)) - 1
+          }, opcode)
         else:
           called_function = self.function_call_stack.pop()
           self.append_to_trace_logger(loc, False, {
