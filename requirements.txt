@@ -1,4 +1,4 @@
-bytecode==0.11.0
+bytecode
 
 pytest==4.4.1
 snapshottest==0.5.1

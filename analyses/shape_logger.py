@@ -1,5 +1,7 @@
-import json
+import math
 import logging
+
+from dateutil.parser import _resultbase
 
 from instrumentation.util import serialize
 import config
@@ -10,17 +12,20 @@ import pandas as pd
 # it maps module_name->method_id->instr_id->Bytecode
 
 from datetime import datetime
+
+from util import ObjectId
+
 curr_dt = datetime.now()
 
 timestamp = int(round(curr_dt.timestamp()))
 columns = ['operand', 'operand1', 'operand2', 'result', 'args_list', 'base', 'index']
-keys = ['module_name', 'method_id', 'instruction_id']
+keys = ['module_name', 'method_id', 'instruction_id', 'lineno', 'type']
 
 
 def process_event(record):
   return record
 
-log_file = f"trace-{timestamp}.csv"
+log_file = f"trace.csv"
 
 def is_non_None_row(row):
   for col in columns:
@@ -40,33 +45,102 @@ def abstraction(obj):
     return False, obj
   return True, None
 
-def aggr(x):
-  try:
-    x = [tuple(e) if isinstance(e, list) else e for e in x]
-    y = set(x)
-    # if len(y) == 1:
-    #   y = y[0]
-  except TypeError as e:
-    logging.debug(f"Set failed on {x} with {e}")
-    raise e
-  return y
+def is_blank(val):
+  return val != val
 
-def remove_singleton_set(e):
-  if isinstance(e, set) and len(e) == 1:
-    return next(iter(e))
+def result_and_args(row):
+  if row['type'] == 'LOAD_ATTR':
+    row['result_and_args'] = [row['result'], row['base'], row['attr_name']]
+  elif row['type'] == 'STORE_ATTR':
+    row['result_and_args'] = [row['result'], row['base'], row['attr_name'], row['operand']]
+  elif row['type'] == 'BINARY_SUBSCR':
+    row['result_and_args'] = [row['result'], row['base'], row['index']]
+  elif row['type'] == 'STORE_SUBSCR':
+    row['result_and_args'] = [row['result'], row['base'], row['index'], row['operand']]
+  elif not is_blank(row['operand']):
+    row['result_and_args'] = [row['result'], row['operand']]
+  elif not is_blank(row['operand1']) or not is_blank(row['operand2']):
+    row['result_and_args'] = [row['result'], row['operand1'], row['operand2']]
+  elif not is_blank(row['args_list']):
+    row['result_and_args'] = [row['result']] + row['args_list']
   else:
-    return e
+    row['result_and_args'] = [row['result']]
+  return row
+
+class DimensionSymbol:
+  counter = 1
+
+  def __init__(self):
+    self.val = DimensionSymbol.counter
+    DimensionSymbol.counter += 1
+
+  def __repr__(self):
+    return 'd' + str(self.val)
+
+
+locationToDimension = dict()
+objectIdToDimension = dict()
+
+def trim_locations():
+  global locationToDimension
+  locationToDimension = {k:v for k, v in locationToDimension.items() if len(v[0]) > 0}
+
+def get_constraints(row):
+  name = ''
+  if not is_blank(row['var_name']):
+    name = row['var_name']
+  elif not is_blank(row['function_name']):
+    name = row['function_name']
+  elif not is_blank(row['attr_name']):
+    name = row['function_name']
+  key = tuple([row[x] for x in keys] + [name])
+  result_and_args = row['result_and_args']
+  if key not in locationToDimension:
+    type = []
+    added = False
+    for value in result_and_args:
+      if isinstance(value, tuple) and len(value) == 3 and isinstance(value[2], tuple):
+        oid = value[0]
+        if oid in objectIdToDimension:
+          shape = objectIdToDimension[oid][1]
+          if shape != value[2]:
+            logging.warn("Inference algorithm's assumption that a tensor's shape is invariant is invalid.")
+            raise Exception
+          type.append(objectIdToDimension[oid][0])
+        else:
+          shape = value[2]
+          shape_type = []
+          for d in shape:
+            shape_type.append(DimensionSymbol())
+          objectIdToDimension[oid] = (shape_type, shape)
+          type.append(shape_type)
+        added = True
+      else:
+        type.append([])
+    if not added:
+      locationToDimension[key] = ([], [result_and_args])
+    else:
+      locationToDimension[key] = (type, [result_and_args])
+  else:
+    locationToDimension[key][1].append(result_and_args)
 
 
 def process_termination(record_list):
   df = pd.DataFrame(record_list)
   print("Saving raw data as a pandas Dataframe in " + log_file)
   pd.DataFrame.to_csv(df, log_file)
-
-#  df = pd.read_csv(log_file)
-#  df.fillna(0, inplace=True)
   indices = df.apply(is_non_None_row, axis=1)
   df = df[indices]
-  df = df.groupby(keys).agg(aggr)
-  df = df.applymap(remove_singleton_set)
+  df = df.apply(result_and_args, axis=1)
+  df = df.drop(columns, axis=1)
+  df = df.apply(get_constraints, axis=1)
+  trim_locations()
+  print("locationToDimension")
+  for k, v in locationToDimension.items():
+    print(f"{k} : {v}")
+  print("objectIdToDimension")
+  for k, v in objectIdToDimension.items():
+    print(f"{k} : {v}")
+  # df = df.groupby(keys).agg(aggr)
+  # df = df.applymap(remove_singleton_set)
   pd.DataFrame.to_csv(df, "filtered_" + log_file)

@@ -76,6 +76,8 @@ pre_instrumented_ops = {
     "BINARY_XOR": 2,
     "BINARY_OR": 2,
 
+    "LOAD_ATTR": 1,
+
     "COMPARE_OP": 2,
 
     "INPLACE_POWER": 2,

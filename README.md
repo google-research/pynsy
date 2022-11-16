@@ -1,7 +1,7 @@
-# Pynxy (Pronounced as pinxy): A Python Analysis Framework 
+# Pynsy (Pronounced as pinxy): A Python Analysis Framework 
 This sets up a strategy to instrument Python bytecode operations based on calculations of the relevant portion of the stack read or updated by each operation, without any specific logic for different operations.
 
-## Installing Pynxy
+## Installing Pynsy
 
 Run the following command in the python-analysis directory.
 
@@ -18,7 +18,7 @@ For example, to collect shapes of various tensor objects, run:
 
 ## Interpreting results for post-processing
 
-When we execute a program with Pynxy, it records information about every load, 
+When we execute a program with Pynsy, it records information about every load, 
 store, and application (e.g. application of a binary/unary operator or calling a 
 method) instruction executed by the program in order. The information is stored 
 as a dictionary which has some common keys and some instruction specific keys. 
@@ -42,7 +42,7 @@ The other instruction specific keys are:
  * `result`: whose value gives the result produced by the execution of an instruction
  * `operand`: the value of the operand if the instruction executed takes an operand as argument
  * `operand1`: the value of the first operand in the case of a binary instruction operating on two operands
- * `operand1`: the value of the second operand in the case of a binary instruction operating on two operands
+ * `operand2`: the value of the second operand in the case of a binary instruction operating on two operands
  * `var_name`: name of the variable if the instruction accesses the value of the variable 
  * `attr_name`: name of the attribute of the object accessed 
  * `base`: the value of the base object in an instruction where a `base` object's value at `index` is accessed by the instruction
@@ -54,7 +54,7 @@ The other instruction specific keys are:
 
 ## Writing a custom dynamic analysis
 
-One can write a custom dynamic analysis for Python instructions of interest by creating a Pynxy analysis class of the form
+One can write a custom dynamic analysis for Python instructions of interest by creating a Pynsy analysis class of the form
 [analyses/shape_logger.py](analyses/shape_logger.py). 
 
 An analysis should override the following functions:

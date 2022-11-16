@@ -177,10 +177,15 @@ class LoadStoreApplyReceiver(EventReceiver):
         }, opcode)
       elif opname[opcode] == "LOAD_ATTR":
         rep = object_id_stack[0]
-        self.append_to_trace_logger(loc, False, {
-            "attr_name": instr.arg,
-            "result": rep,
-        }, opcode)
+        if not is_post:
+          self.pre_op_stack.append(rep)
+        else:
+          collection = self.pre_op_stack.pop()
+          self.append_to_trace_logger(loc, False, {
+              "base": collection,
+              "attr_name": instr.arg,
+              "result": rep,
+          }, opcode)
       elif opname[opcode] == "STORE_NAME" or opname[opcode] == "STORE_FAST":
         rep = object_id_stack[0]
         resolved_frame = self.get_var_reference_frame(cur_frame, instr)
@@ -191,11 +196,10 @@ class LoadStoreApplyReceiver(EventReceiver):
         }, opcode)
       elif opname[opcode] == "STORE_ATTR":
         rep = object_id_stack[0]
-        resolved_frame = self.get_var_reference_frame(cur_frame, instr)
         self.append_to_trace_logger(loc, True, {
-            "frame": self.get_repr(resolved_frame),
+            "operand": object_id_stack[1],
             "attr_name": instr.arg,
-            "operand": rep
+            "base": rep
         }, opcode)
       elif opname[opcode] == "LOAD_DEREF":
         rep = object_id_stack[0]
@@ -220,8 +224,8 @@ class LoadStoreApplyReceiver(EventReceiver):
         else:
           collection, index = self.pre_op_stack.pop()
           self.append_to_trace_logger(loc, False, {
-              "base": collection
-,               "index": index,
+              "base": collection,
+              "index": index,
               "result": rep,
           }, opcode)
       elif opname[opcode] == "STORE_SUBSCR":
