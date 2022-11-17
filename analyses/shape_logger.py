@@ -1,7 +1,9 @@
 import math
 import logging
-
-from dateutil.parser import _resultbase
+import numpy as np
+import itertools
+#from dateutil.parser import _resultbase
+from pandas.core.common import is_bool_indexer
 
 from instrumentation.util import serialize
 import config
@@ -68,7 +70,7 @@ def result_and_args(row):
   return row
 
 class DimensionSymbol:
-  counter = 1
+  counter = 0
 
   def __init__(self):
     self.val = DimensionSymbol.counter
@@ -80,10 +82,20 @@ class DimensionSymbol:
 
 locationToDimension = dict()
 objectIdToDimension = dict()
+state = dict()
+states = []
 
 def trim_locations():
   global locationToDimension
   locationToDimension = {k:v for k, v in locationToDimension.items() if len(v[0]) > 0}
+
+def flatten(l):
+  ret = []
+  for t in l:
+    if isinstance(t, tuple):
+      if isinstance(t[2], tuple) or isinstance(t[2], list):
+        ret = ret + list(t[2])
+  return ret
 
 def get_constraints(row):
   name = ''
@@ -123,6 +135,16 @@ def get_constraints(row):
       locationToDimension[key] = (type, [result_and_args])
   else:
     locationToDimension[key][1].append(result_and_args)
+  symbols = locationToDimension[key][0]
+  if len(symbols) > 0:
+    symbols = itertools.chain(*symbols)
+    keys2 = [x.val for x in symbols]
+    values = locationToDimension[key][1][-1]
+    values = flatten(values)
+    state_update = dict(zip(keys2, values))
+    if not (state_update.items() <= state.items()):
+      state.update(state_update)
+      states.append(dict(state))
 
 
 def process_termination(record_list):
@@ -141,6 +163,38 @@ def process_termination(record_list):
   print("objectIdToDimension")
   for k, v in objectIdToDimension.items():
     print(f"{k} : {v}")
+
+  n_symbols = DimensionSymbol.counter
+  data = []
+  for state in states:
+#    row = [float("NaN")] * n_symbols
+    row = [0] * n_symbols
+    for i, v in state.items():
+      row[i] = v
+    data.append(row)
+  np_data = np.array(data)
+  print(np_data)
+  pd.DataFrame(np_data).to_csv("matrix_" + log_file)
+
+  non_zero_indices = (np_data!=0).argmax(axis=0)
+  solution = [i for i in range(n_symbols)]
+  coeffs = [1, 2, 3]
+  for k in range(1,n_symbols):
+    for i in range(1, k):
+      if isinstance(solution[i], int):
+        b = np.zeros((n_symbols,), dtype=int)
+        b[k] = -1
+        for c in coeffs:
+          b[i] = c
+          fr = max(non_zero_indices[k], non_zero_indices[i])
+          r = np_data.dot(b)
+          if not r[fr:].any():
+            solution[k] = (c, i)
+            break
+        if not isinstance(solution[k], int):
+          break
+  print(solution)
+
   # df = df.groupby(keys).agg(aggr)
   # df = df.applymap(remove_singleton_set)
   pd.DataFrame.to_csv(df, "filtered_" + log_file)
