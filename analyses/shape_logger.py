@@ -4,6 +4,9 @@ import numpy as np
 import itertools
 #from dateutil.parser import _resultbase
 from pandas.core.common import is_bool_indexer
+import itertools
+
+from scipy.spatial._ckdtree import coo_entries
 
 from instrumentation.util import serialize
 import config
@@ -146,6 +149,43 @@ def get_constraints(row):
       state.update(state_update)
       states.append(dict(state))
 
+def print_solution(solution):
+  for i, v in enumerate(solution):
+    if isinstance(v, int):
+      print(f"d{i}: d{i}")
+    else:
+      s = ""
+      for c, var in zip(v[0], v[1]):
+        if c == 1:
+          s += f"d{var} +"
+        else:
+          s += f"{c}d{var} +"
+      if len(s) > 0:
+        s = s[0:-2]
+      print(f"d{i}: {s}")
+
+def find_solution(np_data, n_symbols):
+  non_zero_indices = (np_data!=0).argmax(axis=0)
+  max_variables = 4
+  solution = [i for i in range(n_symbols)]
+  coeffs = [1, 2, 3]
+  for n_vars in range(2, max_variables + 1):
+    domain = range(0, n_symbols)
+    pick_n_vars = itertools.combinations(domain, n_vars)
+    for vars in pick_n_vars:
+      if all(map(lambda x: isinstance(solution[x], int), vars)):
+        coeff_iterator = itertools.combinations_with_replacement(coeffs, n_vars - 1)
+        for cs in coeff_iterator:
+          b = np.zeros((n_symbols,), dtype=int)
+          for c, var in itertools.zip_longest(cs, vars, fillvalue = -1):
+            b[var] = c
+          fr = max([non_zero_indices[var] for var in vars])
+          r = np_data.dot(b)
+          if not r[fr:].any():
+            solution[vars[-1]] = (cs, vars[:-1])
+            break
+  print_solution(solution)
+  return solution
 
 def process_termination(record_list):
   df = pd.DataFrame(record_list)
@@ -173,27 +213,33 @@ def process_termination(record_list):
       row[i] = v
     data.append(row)
   np_data = np.array(data)
-  print(np_data)
+#  print(np_data)
   pd.DataFrame(np_data).to_csv("matrix_" + log_file)
 
-  non_zero_indices = (np_data!=0).argmax(axis=0)
-  solution = [i for i in range(n_symbols)]
-  coeffs = [1, 2, 3]
-  for k in range(1,n_symbols):
-    for i in range(1, k):
-      if isinstance(solution[i], int):
-        b = np.zeros((n_symbols,), dtype=int)
-        b[k] = -1
-        for c in coeffs:
-          b[i] = c
-          fr = max(non_zero_indices[k], non_zero_indices[i])
-          r = np_data.dot(b)
-          if not r[fr:].any():
-            solution[k] = (c, i)
-            break
-        if not isinstance(solution[k], int):
-          break
-  print(solution)
+  solution = find_solution(np_data, n_symbols)
+
+  # non_zero_indices = (np_data!=0).argmax(axis=0)
+  # solution = [i for i in range(n_symbols)]
+  # coeffs = [1, 2, 3]
+  # for k in range(1,n_symbols):
+  #   for i in range(1, k):
+  #     if isinstance(solution[i], int):
+  #       b = np.zeros((n_symbols,), dtype=int)
+  #       b[k] = -1
+  #       for c in coeffs:
+  #         b[i] = c
+  #         fr = max(non_zero_indices[k], non_zero_indices[i])
+  #         r = np_data.dot(b)
+  #         if not r[fr:].any():
+  #           solution[k] = (c, i)
+  #           break
+  #       if not isinstance(solution[k], int):
+  #         break
+  #   if isinstance(solution[k], int):
+  #     base_dimensions.append(k)
+  #
+  # print(solution)
+  # print(base_dimensions)
 
   # df = df.groupby(keys).agg(aggr)
   # df = df.applymap(remove_singleton_set)
