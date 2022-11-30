@@ -1,6 +1,8 @@
 from dis import opname, opmap
 from types import FrameType
 import config
+from mypy.checkexpr import has_any_type
+
 from .event_receiver import EventReceiver
 from .heap_object_tracking import HeapObjectTracker
 from .instrument import binary_ops
@@ -18,6 +20,7 @@ def getlineno(id_to_orig_bytecode, method_id, instr_id):
 class LoadStoreApplyReceiver(EventReceiver):
   loop_stack: List[Any]
   function_call_stack: List[Any]
+  function_name_stack: List[Any]
   heap_object_tracking: HeapObjectTracker
   frame_tracking: HeapObjectTracker
   cell_to_frame: Dict[int, Union[FrameType, int]]
@@ -28,6 +31,7 @@ class LoadStoreApplyReceiver(EventReceiver):
   def __init__(self) -> None:
     self.loop_stack = []
     self.function_call_stack = []
+    self.function_name_stack = []
     self.heap_object_tracking = HeapObjectTracker()
     self.frame_tracking = HeapObjectTracker()
     self.cell_to_frame = {}
@@ -108,53 +112,64 @@ class LoadStoreApplyReceiver(EventReceiver):
         if not is_post:
           self.function_call_stack.append(object_id_stack[0])
           called_function = self.function_call_stack[-1]
+          self.function_name_stack.append(stack[0].__name__ if hasattr(stack[0], "__name__") else str(stack[0]))
+          function_name = self.function_name_stack[-1]
           self.append_to_trace_logger(loc, True, {
               "function": called_function,
-              "function_name": str(stack[0]),
+              "function_name": function_name,
               "args_list": object_id_stack[1:],
               "indentation": (len(self.loop_stack) + len(self.function_call_stack)) - 1
           }, opcode)
         else:
           object_id_stack = self.convert_stack_to_heap_id(stack)
           called_function = self.function_call_stack.pop()
+          function_name = self.function_name_stack.pop()
           self.append_to_trace_logger(loc, False, {
               "type": "RETURN_FUNCTION",
               "function": called_function,
+              "function_name": function_name,
               "result": object_id_stack[0]}, opcode)
       elif opname[opcode] == "CALL_METHOD":
         if not is_post:
           self.function_call_stack.append(object_id_stack[0])
           called_function = self.function_call_stack[-1]
+          self.function_name_stack.append(stack[0].__name__ if hasattr(stack[0], "__name__") else str(stack[0]))
+          function_name = self.function_name_stack[-1]
           self.append_to_trace_logger(loc, True, {
               "function": called_function,
-              "function_name": str(stack[0]),
+              "function_name": function_name,
               "args_list": object_id_stack[1:],
               "indentation": (len(self.loop_stack) + len(self.function_call_stack)) - 1
           }, opcode)
         else:
           object_id_stack = self.convert_stack_to_heap_id(stack)
           called_function = self.function_call_stack.pop()
+          function_name = self.function_name_stack.pop()
           self.append_to_trace_logger(loc, False, {
               "type": "RETURN_METHOD",
               "function": called_function,
+              "function_name": function_name,
               "result": object_id_stack[0]}, opcode)
       elif opname[opcode] == "CALL_FUNCTION_KW":
         if not is_post:
           keys = stack[-1]
-          arg_keys = self.convert_stack_to_heap_id(keys)
           self.function_call_stack.append(object_id_stack[0])
           called_function = self.function_call_stack[-1]
+          self.function_name_stack.append(stack[0].__name__ if hasattr(stack[0], "__name__") else str(stack[0]))
+          function_name = self.function_name_stack[-1]
           self.append_to_trace_logger(loc, True, {
               "function": called_function,
-              "function_name": str(stack[0]),
+              "function_name": function_name,
               "args_list": object_id_stack[1:-1] + [keys,],
               "indentation": (len(self.loop_stack) + len(self.function_call_stack)) - 1
           }, opcode)
         else:
           called_function = self.function_call_stack.pop()
+          function_name = self.function_name_stack.pop()
           self.append_to_trace_logger(loc, False, {
               "type": "RETURN_FUNCTION_KW",
               "function": called_function,
+              "function_name": function_name,
               "result": object_id_stack[0]}, opcode)
       elif opname[opcode] == "LOAD_CONST":
         rep = object_id_stack[0]
