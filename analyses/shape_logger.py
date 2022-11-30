@@ -26,6 +26,65 @@ timestamp = int(round(curr_dt.timestamp()))
 columns = ['operand', 'operand1', 'operand2', 'result', 'args_list', 'base', 'index']
 keys = ['module_name', 'method_id', 'instruction_id', 'lineno', 'type']
 
+nick_names = {
+    "UNARY_POSITIVE": "+",
+    "UNARY_NEGATIVE": "-",
+    "UNARY_NOT": "not",
+    "UNARY_INVERT": "invert",
+    "GET_ITER": "iter",
+    "GET_YIELD_FROM_ITER": "yield",
+
+    "BINARY_POWER": "**",
+    "BINARY_MULTIPLY": "*",
+    "BINARY_MATRIX_MULTIPLY": "matmul",
+    "BINARY_FLOOR_DIVIDE": "//",
+    "BINARY_TRUE_DIVIDE": "/",
+    "BINARY_MODULO": "%",
+    "BINARY_ADD": "+",
+    "BINARY_SUBTRACT": "-",
+    "BINARY_SUBSCR": "[]",
+    "BINARY_LSHIFT": "<<",
+    "BINARY_RSHIFT": ">>",
+    "BINARY_AND": "&",
+    "BINARY_XOR": "^",
+    "BINARY_OR": "|",
+
+    "COMPARE_OP": "cmp",
+
+    "INPLACE_POWER": "**",
+    "INPLACE_MULTIPLY": "*",
+    "INPLACE_MATRIX_MULTIPLY": "matmul",
+    "INPLACE_FLOOR_DIVIDE": "//",
+    "INPLACE_TRUE_DIVIDE": "/",
+    "INPLACE_MODULO": "%",
+    "INPLACE_ADD": "+",
+    "INPLACE_SUBTRACT": "-",
+    "INPLACE_LSHIFT": "<<",
+    "INPLACE_RSHIFT": ">>",
+    "INPLACE_AND": "&",
+    "INPLACE_XOR": "^",
+    "INPLACE_OR": "|",
+
+    "MAKE_FUNCTION": "def",
+
+    "LOAD_NAME": "load",
+    "LOAD_FAST": "load",
+    "LOAD_DEREF": "load",
+    "LOAD_CLOSURE": "load",
+    "LOAD_ATTR": "load",
+    "LOAD_CONST": "load",
+    "LOAD_GLOBAL": "load",
+
+    "CALL_FUNCTION": "call",
+    "CALL_FUNCTION_KW": "call",
+    "CALL_METHOD": "call",
+    "RETURN_FUNCTION": "call",
+    "RETURN_FUNCTION_KW": "call",
+    "RETURN_METHOD": "call"
+
+}
+
+
 
 def process_event(record):
   return record
@@ -42,6 +101,9 @@ def is_non_None_row(row):
       if isinstance(arg, tuple):
         return True
   return False
+
+def has_result(row):
+  return isinstance(row['result'], tuple)
 
 def abstraction(obj):
   if hasattr(obj, 'shape'):
@@ -69,6 +131,11 @@ def result_and_args(row):
   elif not is_blank(row['args_list']):
     row['result_and_args'] = [row['result']] + row['args_list']
   else:
+    row['result_and_args'] = [row['result']]
+  return row
+
+def wrap_result(row):
+  if isinstance(row['result'], tuple):
     row['result_and_args'] = [row['result']]
   return row
 
@@ -149,10 +216,11 @@ def get_constraints(row):
       state.update(state_update)
       states.append(dict(state))
 
-def print_solution(solution):
+def str_solution(solution):
+  ret = [""]*len(solution)
   for i, v in enumerate(solution):
     if isinstance(v, int):
-      print(f"d{i}: d{i}")
+      ret[i] = f"d{i}"
     else:
       s = ""
       for c, var in zip(v[0], v[1]):
@@ -162,7 +230,8 @@ def print_solution(solution):
           s += f"{c}d{var} +"
       if len(s) > 0:
         s = s[0:-2]
-      print(f"d{i}: {s}")
+      ret[i] = f"{s}"
+  return ret
 
 def find_solution(np_data, n_symbols):
   non_zero_indices = (np_data!=0).argmax(axis=0)
@@ -184,16 +253,15 @@ def find_solution(np_data, n_symbols):
           if not r[fr:].any():
             solution[vars[-1]] = (cs, vars[:-1])
             break
-  print_solution(solution)
-  return solution
+  return str_solution(solution)
 
 def process_termination(record_list):
   df = pd.DataFrame(record_list)
   print("Saving raw data as a pandas Dataframe in " + log_file)
   pd.DataFrame.to_csv(df, log_file)
-  indices = df.apply(is_non_None_row, axis=1)
+  indices = df.apply(has_result, axis=1)
   df = df[indices]
-  df = df.apply(result_and_args, axis=1)
+  df = df.apply(wrap_result, axis=1)
   df = df.drop(columns, axis=1)
   df = df.apply(get_constraints, axis=1)
   trim_locations()
@@ -217,6 +285,20 @@ def process_termination(record_list):
   pd.DataFrame(np_data).to_csv("matrix_" + log_file)
 
   solution = find_solution(np_data, n_symbols)
+  print("Printing solution ...")
+  for d, e in enumerate(solution):
+    print(f"d{d} -> {e}")
+
+  line_annotations = dict()
+  for k, v in locationToDimension.items():
+    key = k[0], k[3]
+    if key not in line_annotations:
+      line_annotations[key] = []
+    line_annotations[key].append((k[4],k[5], v[0][0]))
+  print("Printing annotations by line number ...")
+  for line, annot in line_annotations.items():
+    s = [(nick_names[t], n, tuple([f"d{solution[d.val]}" for d in a])) for t, n, a in annot]
+    print(f"{line}: {s}")
 
   # non_zero_indices = (np_data!=0).argmax(axis=0)
   # solution = [i for i in range(n_symbols)]
