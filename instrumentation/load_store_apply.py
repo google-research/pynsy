@@ -112,7 +112,7 @@ class LoadStoreApplyReceiver(EventReceiver):
         if not is_post:
           self.function_call_stack.append(object_id_stack[0])
           called_function = self.function_call_stack[-1]
-          self.function_name_stack.append(stack[0].__name__ if hasattr(stack[0], "__name__") else str(stack[0]))
+          self.function_name_stack.append(stack[0].__name__ if hasattr(stack[0], "__name__") else type(stack[0]))
           function_name = self.function_name_stack[-1]
           self.append_to_trace_logger(loc, True, {
               "function": called_function,
@@ -133,7 +133,7 @@ class LoadStoreApplyReceiver(EventReceiver):
         if not is_post:
           self.function_call_stack.append(object_id_stack[0])
           called_function = self.function_call_stack[-1]
-          self.function_name_stack.append(stack[0].__name__ if hasattr(stack[0], "__name__") else str(stack[0]))
+          self.function_name_stack.append(stack[0].__name__ if hasattr(stack[0], "__name__") else type(stack[0]))
           function_name = self.function_name_stack[-1]
           self.append_to_trace_logger(loc, True, {
               "function": called_function,
@@ -155,7 +155,7 @@ class LoadStoreApplyReceiver(EventReceiver):
           keys = stack[-1]
           self.function_call_stack.append(object_id_stack[0])
           called_function = self.function_call_stack[-1]
-          self.function_name_stack.append(stack[0].__name__ if hasattr(stack[0], "__name__") else str(stack[0]))
+          self.function_name_stack.append(stack[0].__name__ if hasattr(stack[0], "__name__") else type(stack[0]))
           function_name = self.function_name_stack[-1]
           self.append_to_trace_logger(loc, True, {
               "function": called_function,

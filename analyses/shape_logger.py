@@ -297,7 +297,7 @@ def process_termination(record_list):
     line_annotations[key].append((k[4],k[5], v[0][0]))
   print("Printing annotations by line number ...")
   for line, annot in line_annotations.items():
-    s = [(nick_names[t], n, tuple([f"d{solution[d.val]}" for d in a])) for t, n, a in annot]
+    s = [(nick_names[t], n, tuple([f"{solution[d.val]}" for d in a])) for t, n, a in annot]
     print(f"{line}: {s}")
 
   # non_zero_indices = (np_data!=0).argmax(axis=0)
