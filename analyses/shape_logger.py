@@ -23,7 +23,7 @@ from util import ObjectId
 curr_dt = datetime.now()
 
 timestamp = int(round(curr_dt.timestamp()))
-columns = ['operand', 'operand1', 'operand2', 'result', 'args_list', 'base', 'index']
+columns = ['operand', 'operand1', 'operand2', 'args_list', 'base', 'index']
 keys = ['module_name', 'method_id', 'instruction_id', 'lineno', 'type']
 
 nick_names = {
@@ -157,7 +157,7 @@ states = []
 
 def trim_locations():
   global locationToDimension
-  locationToDimension = {k:v for k, v in locationToDimension.items() if len(v[0]) > 0}
+  locationToDimension = {k:v for k, v in locationToDimension.items() if is_shape(v[0])}
 
 def flatten(l):
   ret = []
@@ -167,51 +167,48 @@ def flatten(l):
         ret = ret + list(t[2])
   return ret
 
+def is_shape_value(value):
+  return isinstance(value, tuple) and len(value) == 3 and is_shape(value[2])
+
+def is_shape(s):
+  return isinstance(s, list) or isinstance(s, tuple)
+
 def get_constraints(row):
   name = ''
   if not is_blank(row['var_name']):
     name = row['var_name']
   elif not is_blank(row['function_name']):
-    name = row['function_name']
+    name = str(row['function_name']) + '()'
   elif not is_blank(row['attr_name']):
-    name = row['function_name']
+    name = '.' + row['attr_name']
   key = tuple([row[x] for x in keys] + [name])
-  result_and_args = row['result_and_args']
+  value = row['result']
+  type = None
   if key not in locationToDimension:
-    type = []
-    added = False
-    for value in result_and_args:
-      if isinstance(value, tuple) and len(value) == 3 and isinstance(value[2], tuple):
-        oid = value[0]
-        if oid in objectIdToDimension:
-          shape = objectIdToDimension[oid][1]
-          if shape != value[2]:
-            logging.warn("Inference algorithm's assumption that a tensor's shape is invariant is invalid.")
-            raise Exception
-          type.append(objectIdToDimension[oid][0])
-        else:
-          shape = value[2]
-          shape_type = []
-          for d in shape:
-            shape_type.append(DimensionSymbol())
-          objectIdToDimension[oid] = (shape_type, shape)
-          type.append(shape_type)
-        added = True
+    if is_shape_value(value):
+      oid = value[0]
+      if oid in objectIdToDimension:
+        shape = objectIdToDimension[oid][1]
+        if shape != value[2]:
+          logging.warning("Inference algorithm's assumption that a tensor's shape is invariant is invalid.")
+          raise Exception
+        type = objectIdToDimension[oid][0]
       else:
-        type.append([])
-    if not added:
-      locationToDimension[key] = ([], [result_and_args])
+        shape = value[2]
+        shape_type = []
+        for d in shape:
+          shape_type.append(DimensionSymbol())
+        objectIdToDimension[oid] = (shape_type, shape)
+        type = shape_type
     else:
-      locationToDimension[key] = (type, [result_and_args])
+      type = None
+    locationToDimension[key] = (type, [value])
   else:
-    locationToDimension[key][1].append(result_and_args)
-  symbols = locationToDimension[key][0]
-  if len(symbols) > 0:
-    symbols = itertools.chain(*symbols)
-    keys2 = [x.val for x in symbols]
-    values = locationToDimension[key][1][-1]
-    values = flatten(values)
-    state_update = dict(zip(keys2, values))
+    locationToDimension[key][1].append(value)
+  symbolic_dimensions = locationToDimension[key][0]
+  if is_shape(symbolic_dimensions):
+    value = locationToDimension[key][1][-1]
+    state_update = dict(zip(symbolic_dimensions, value[2]))
     if not (state_update.items() <= state.items()):
       state.update(state_update)
       states.append(dict(state))
@@ -255,13 +252,19 @@ def find_solution(np_data, n_symbols):
             break
   return str_solution(solution)
 
+
+def get_name(type, name):
+  if isinstance(name, str) and len(name)>0:
+    return name
+  else:
+    return nick_names[type]
+
 def process_termination(record_list):
   df = pd.DataFrame(record_list)
   print("Saving raw data as a pandas Dataframe in " + log_file)
   pd.DataFrame.to_csv(df, log_file)
   indices = df.apply(has_result, axis=1)
   df = df[indices]
-  df = df.apply(wrap_result, axis=1)
   df = df.drop(columns, axis=1)
   df = df.apply(get_constraints, axis=1)
   trim_locations()
@@ -278,7 +281,7 @@ def process_termination(record_list):
 #    row = [float("NaN")] * n_symbols
     row = [0] * n_symbols
     for i, v in state.items():
-      row[i] = v
+      row[i.val] = v
     data.append(row)
   np_data = np.array(data)
 #  print(np_data)
@@ -294,11 +297,13 @@ def process_termination(record_list):
     key = k[0], k[3]
     if key not in line_annotations:
       line_annotations[key] = []
-    line_annotations[key].append((k[4],k[5], v[0][0]))
+    line_annotations[key].append((k[4],k[5], v[0]))
   print("Printing annotations by line number ...")
   for line, annot in line_annotations.items():
-    s = [(nick_names[t], n, tuple([f"{solution[d.val]}" for d in a])) for t, n, a in annot]
-    print(f"{line}: {s}")
+    s = [(get_name(t, n), tuple([f"{solution[d.val]}" for d in a])) for t, n, a in annot]
+    print(f"{line}:")
+    for name, shape in s:
+      print(f"  {name}: {shape}")
 
   # non_zero_indices = (np_data!=0).argmax(axis=0)
   # solution = [i for i in range(n_symbols)]
