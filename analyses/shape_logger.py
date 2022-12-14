@@ -254,7 +254,7 @@ def find_solution(np_data, n_symbols):
 
 
 def get_name(type, name):
-  if isinstance(name, str) and len(name)>0:
+  if isinstance(name, str) and len(name) > 0:
     return name
   else:
     return nick_names[type]
@@ -298,12 +298,13 @@ def process_termination(record_list):
     if key not in line_annotations:
       line_annotations[key] = []
     line_annotations[key].append((k[4],k[5], v[0]))
-  print("Printing annotations by line number ...")
-  for line, annot in line_annotations.items():
-    s = [(get_name(t, n), tuple([f"{solution[d.val]}" for d in a])) for t, n, a in annot]
-    print(f"{line}:")
-    for name, shape in s:
-      print(f"  {name}: {shape}")
+  with open("annotations_"+log_file, "w") as out:
+    print("Saving annotations ...\n")
+    for line, annot in line_annotations.items():
+      s = [(get_name(t, n), tuple([f"{solution[d.val]}" for d in a])) for t, n, a in annot]
+      out.write(f"{line[0]}@{line[1]}:\n")
+      for name, shape in s:
+        out.write(f"    {name}: {shape}\n")
 
   # non_zero_indices = (np_data!=0).argmax(axis=0)
   # solution = [i for i in range(n_symbols)]

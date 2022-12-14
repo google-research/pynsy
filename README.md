@@ -10,11 +10,11 @@ Run the following command in the python-analysis directory.
 ## Running a custom dynamic analysis defined in a module called `app_module_name` whose main method (or entry method) is `main_method_name`
 
 
-`python3 run_instrumented.py analysis_module_name app_module_name.main_method_name  [list of arguments passed as sys.argv[2:]]`
+`python3 run_instrumented.py analysis_module_name app_module_name  [list of arguments passed as sys.argv[2:]]`
 
 For example, to collect shapes of various tensor objects, run:
 
-`python3 run_instrumented.py analyses.shape_logger demos.mnist.init_fun `
+`python3 run_instrumented.py analyses.load_store_apply demos.mnist `
 
 ## Interpreting results for post-processing
 

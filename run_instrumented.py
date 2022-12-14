@@ -30,14 +30,16 @@ def import_method_from_module(s, isMethod=True):
     return module_to_load
 
 
-function_under_test = import_method_from_module(sys.argv[2], True)
 receiver = LoadStoreApplyReceiver()
 config.custom_analyzer = import_method_from_module(sys.argv[1], False)
+#function_under_test = import_method_from_module(sys.argv[2], True)
 
-sys.argv = sys.argv[2:]
 
 with receiver:
-  function_under_test()
+  pgm = sys.argv[2]
+  sys.argv = sys.argv[2:]
+  function_under_test = import_method_from_module(pgm, False)
+#  function_under_test()
 
 
 config.custom_analyzer.process_termination(receiver.trace_logger)
