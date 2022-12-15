@@ -26,6 +26,7 @@ from jax import jit, grad
 from jax.scipy.special import logsumexp
 import jax.numpy as jnp
 import demos.datasets as datasets
+import analyses.shape_logger as shaper
 
 
 def init_random_params(scale, layer_sizes, rng=npr.RandomState(0)):
@@ -34,6 +35,7 @@ def init_random_params(scale, layer_sizes, rng=npr.RandomState(0)):
 
 def predict(params, inputs):
   activations = inputs
+  shaper.annotate_shape(inputs, ("batch", "size"))
   for w, b in params[:-1]:
     outputs = jnp.dot(activations, w) + b
     activations = jnp.tanh(outputs)

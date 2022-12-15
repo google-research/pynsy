@@ -1,24 +1,8 @@
-import math
 import logging
 import numpy as np
 import itertools
-#from dateutil.parser import _resultbase
-from pandas.core.common import is_bool_indexer
-import itertools
-
-from scipy.spatial._ckdtree import coo_entries
-
-from instrumentation.util import serialize
-import config
-
 import pandas as pd
-
-# config.static_program_info contains the static bytecode information
-# it maps module_name->method_id->instr_id->Bytecode
-
 from datetime import datetime
-
-from util import ObjectId
 
 curr_dt = datetime.now()
 
@@ -84,12 +68,15 @@ nick_names = {
 
 }
 
-
-
-def process_event(record):
-  return record
-
+object_name_space = dict()
+name_space = dict()
+last_oid = -1
 log_file = f"trace.csv"
+locationToDimension = dict()
+objectIdToDimension = dict()
+state = dict()
+states = []
+
 
 def is_non_None_row(row):
   for col in columns:
@@ -104,13 +91,6 @@ def is_non_None_row(row):
 
 def has_result(row):
   return isinstance(row['result'], tuple)
-
-def abstraction(obj):
-  if hasattr(obj, 'shape'):
-    return False, obj.shape
-  elif isinstance(obj, int) or  isinstance(obj, float) or isinstance(obj, str):
-    return False, obj
-  return True, None
 
 def is_blank(val):
   return val != val
@@ -149,11 +129,6 @@ class DimensionSymbol:
   def __repr__(self):
     return 'd' + str(self.val)
 
-
-locationToDimension = dict()
-objectIdToDimension = dict()
-state = dict()
-states = []
 
 def trim_locations():
   global locationToDimension
@@ -213,18 +188,24 @@ def get_constraints(row):
       state.update(state_update)
       states.append(dict(state))
 
+def format_dimension(i):
+  if i in name_space:
+    return name_space[i]
+  else:
+    return f"d{i}"
+
 def str_solution(solution):
   ret = [""]*len(solution)
   for i, v in enumerate(solution):
     if isinstance(v, int):
-      ret[i] = f"d{i}"
+      ret[i] = format_dimension(i)
     else:
       s = ""
       for c, var in zip(v[0], v[1]):
         if c == 1:
-          s += f"d{var} +"
+          s += format_dimension(var) + " +"
         else:
-          s += f"{c}d{var} +"
+          s += f"{c}" + format_dimension(var) + " +"
       if len(s) > 0:
         s = s[0:-2]
       ret[i] = f"{s}"
@@ -250,7 +231,7 @@ def find_solution(np_data, n_symbols):
           if not r[fr:].any():
             solution[vars[-1]] = (cs, vars[:-1])
             break
-  return str_solution(solution)
+  return solution
 
 
 def get_name(type, name):
@@ -258,6 +239,25 @@ def get_name(type, name):
     return name
   else:
     return nick_names[type]
+
+def abstraction(obj):
+  if hasattr(obj, 'shape'):
+    return False, obj.shape
+  elif isinstance(obj, int) or  isinstance(obj, float) or isinstance(obj, str):
+    return False, obj
+  return True, None
+
+def process_event(record):
+  global last_oid
+  if 'result' in record and is_shape_value(record['result']):
+    last_oid = record['result'][0]
+  return record
+
+
+def process_names():
+  for oid in object_name_space.keys():
+    for d, n in zip(objectIdToDimension[oid][0], object_name_space[oid]):
+      name_space[d.val] = n
 
 def process_termination(record_list):
   df = pd.DataFrame(record_list)
@@ -287,7 +287,14 @@ def process_termination(record_list):
 #  print(np_data)
   pd.DataFrame(np_data).to_csv("matrix_" + log_file)
 
+  process_names()
   solution = find_solution(np_data, n_symbols)
+  for i, v in enumerate(solution):
+    if i in name_space:
+      if isinstance(v, tuple):
+        assert len(v[0]) == 1
+        name_space[v[1][0]] = name_space[i]
+  solution = str_solution(solution)
   print("Printing solution ...")
   for d, e in enumerate(solution):
     print(f"d{d} -> {e}")
@@ -297,38 +304,16 @@ def process_termination(record_list):
     key = k[0], k[3]
     if key not in line_annotations:
       line_annotations[key] = []
-    line_annotations[key].append((k[4],k[5], v[0]))
+    line_annotations[key].append((k[4], k[5], v[0], v[1][0][2]))
   with open("annotations_"+log_file, "w") as out:
     print("Saving annotations ...\n")
     for line, annot in line_annotations.items():
-      s = [(get_name(t, n), tuple([f"{solution[d.val]}" for d in a])) for t, n, a in annot]
+      s = [(get_name(t, n), tuple([f"{solution[d.val]}" for d in a]), c) for t, n, a, c in annot]
       out.write(f"{line[0]}@{line[1]}:\n")
-      for name, shape in s:
-        out.write(f"    {name}: {shape}\n")
+      for name, shape, concrete in s:
+        out.write(f"    {name}: {shape} {concrete}\n")
 
-  # non_zero_indices = (np_data!=0).argmax(axis=0)
-  # solution = [i for i in range(n_symbols)]
-  # coeffs = [1, 2, 3]
-  # for k in range(1,n_symbols):
-  #   for i in range(1, k):
-  #     if isinstance(solution[i], int):
-  #       b = np.zeros((n_symbols,), dtype=int)
-  #       b[k] = -1
-  #       for c in coeffs:
-  #         b[i] = c
-  #         fr = max(non_zero_indices[k], non_zero_indices[i])
-  #         r = np_data.dot(b)
-  #         if not r[fr:].any():
-  #           solution[k] = (c, i)
-  #           break
-  #       if not isinstance(solution[k], int):
-  #         break
-  #   if isinstance(solution[k], int):
-  #     base_dimensions.append(k)
-  #
-  # print(solution)
-  # print(base_dimensions)
 
-  # df = df.groupby(keys).agg(aggr)
-  # df = df.applymap(remove_singleton_set)
-  pd.DataFrame.to_csv(df, "filtered_" + log_file)
+def annotate_shape(obj, shape):
+  object_name_space[last_oid] = shape
+
