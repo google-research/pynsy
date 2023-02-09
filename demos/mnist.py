@@ -36,6 +36,7 @@ def init_random_params(scale, layer_sizes, rng=npr.RandomState(0)):
 def predict(params, inputs):
   activations = inputs
   shaper.annotate_shape(inputs, ("batch", "size"))
+  # Shapes: inputs.shape: batch, size
   for w, b in params[:-1]:
     outputs = jnp.dot(activations, w) + b
     activations = jnp.tanh(outputs)
