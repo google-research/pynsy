@@ -18,12 +18,12 @@ For example, to collect shapes of various tensor objects, run:
 
 ## Interpreting results for post-processing
 
-When we execute a program with Pynsy, it records information about every load, 
-store, and application (e.g. application of a binary/unary operator or calling a 
+When we execute a program with **Pynsy**, it records information about every load, 
+store, and application (e.g. application of a binary/unary operator or ivocation of a 
 method) instruction executed by the program in order. The information is stored 
 as a dictionary which has some common keys and some instruction specific keys. 
 Each dictionary is printed in a new line in JSON format.  One could save the 
-sequence of records in a table, and use `panadas` or some data analytics 
+sequence of records in a table, and use `pandas` or some data analytics 
 framework for further analysis.
 
 The common keys found in each record are the following
@@ -66,7 +66,8 @@ import config
 # it maps module_name->method_id->instr_id->Bytecode
 
 def abstraction(obj):
-  # return a finite abstraction of the object
+  # returns a tupe of a Boolean (indicating whether the value should be ignored or not) and 
+  # a finite abstraction of the object if it is not ognored.
 
 def process_event(record):
   # process each event as they are being generated
