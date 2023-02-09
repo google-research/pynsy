@@ -25,5 +25,4 @@ def quick1(a, st=0, en=None):
 		quick1(a, st, end)
 		quick1(a, end+1, en)
 
-def main():
-	print(quicksort_return([3, 4, 1, -5, 2, 10, -6]))
+print(quicksort_return([3, 4, 1, -5, 2, 10, -6]))
