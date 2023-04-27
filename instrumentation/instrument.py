@@ -1,5 +1,6 @@
 from types import CodeType
 
+from _testcapi import instancemethod
 from bytecode import Bytecode, Instr, Label
 import logging
 from .util import clone_bytecode_empty_body
@@ -295,6 +296,9 @@ def instrument_bytecode(byte_code: Bytecode, method_id: int = 0) -> Bytecode:
           get_args_num(pre_instrumented_ops[instr.name], instr),
           method_id, False
       )
+
+    if isinstance(instr, Instr) and instr.name == "LOAD_CLOSURE":
+      print(instr.name)
 
     if isinstance(instr, Instr) \
         and instr.name not in pre_instrumented_ops \
