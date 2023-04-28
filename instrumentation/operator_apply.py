@@ -35,17 +35,21 @@ class OperatorApply(EventReceiver):
     self.trace_logger = []
     self.cell_to_frame = {}
     self.exec_len_key = "exec_len"
+    self.novalue = {'id': -1, 'type': type(None), 'abstraction': None}
     super().__init__()
+
+  def get_wrapped_repr(self, obj):
+    return {'id': 0, 'type': type(obj), 'abstraction': obj}
 
   def get_repr(self, obj):
     ignore, repr = config.custom_analyzer.abstraction(obj)
     if not ignore:
-      return ObjectId(self.heap_object_tracking.get_object_id(obj)), type(obj), repr
+      return {'id': ObjectId(self.heap_object_tracking.get_object_id(obj)), 'type': type(obj), 'abstraction': repr}
     else:
-      return None
+      return {'id': 0, 'type': type(obj), 'abstraction': repr}
 
   def get_special_object_repr(self, obj):
-    return ObjectId(self.heap_object_tracking.get_object_id(obj)), type(obj), None
+    return {'id': ObjectId(self.heap_object_tracking.get_object_id(obj)), 'type': type(obj), 'abstraction': None}
 
 
   def handle_jump_target(self, target_op_index: int) -> None:
@@ -128,7 +132,7 @@ class OperatorApply(EventReceiver):
           function_name = self.function_name_stack[-1]
           self.append_to_trace_logger(loc, {
               "name": function_name,
-              "result_and_args": [None] + object_id_stack[1:],
+              "result_and_args": [self.novalue] + object_id_stack[1:],
               "indentation": (len(self.loop_stack) + len(self.function_name_stack)) - 1
           }, opcode)
         else:
@@ -146,7 +150,7 @@ class OperatorApply(EventReceiver):
           function_name = self.function_name_stack[-1]
           self.append_to_trace_logger(loc, {
               "name": function_name,
-              "result_and_args": [None] + object_id_stack[1:],
+              "result_and_args": [self.novalue] + object_id_stack[1:],
               "indentation": (len(self.loop_stack) + len(self.function_name_stack)) - 1
           }, opcode)
         else:
@@ -164,7 +168,7 @@ class OperatorApply(EventReceiver):
           function_name = self.function_name_stack[-1]
           self.append_to_trace_logger(loc, {
               "function_name": function_name,
-              "args_list": object_id_stack[1:-1] + [keys,],
+              "result_and_args": object_id_stack[1:-1] + [keys,],
               "indentation": (len(self.loop_stack) + len(self.function_call_stack)) - 1
           }, opcode)
         else:
@@ -183,13 +187,13 @@ class OperatorApply(EventReceiver):
         rep = object_id_stack[0]
         self.append_to_trace_logger(loc, {
             "name": instr.arg,
-            "result_and_args": [rep, instr.arg],
+            "result_and_args": [rep, self.get_wrapped_repr(instr.arg)],
         }, opcode)
       elif opname[opcode] == "LOAD_NAME" or opname[opcode] == "LOAD_FAST":
         rep = object_id_stack[0]
         self.append_to_trace_logger(loc, {
             "name": instr.arg,
-            "result_and_args": [rep, self.get_special_object_repr(cur_frame), instr.arg]
+            "result_and_args": [rep, self.get_special_object_repr(cur_frame), self.get_wrapped_repr(instr.arg)]
         }, opcode)
       elif opname[opcode] == "LOAD_CLOSURE":
         rep = self.get_special_object_repr(stack[0])
@@ -197,7 +201,7 @@ class OperatorApply(EventReceiver):
           self.cell_to_frame[rep[0].id] = self.get_special_object_repr(cur_frame)[0].id
         self.append_to_trace_logger(loc, {
             "name": instr.arg,
-            "result_and_args": [rep, self.get_special_object_repr(cur_frame), instr.arg]
+            "result_and_args": [rep, self.get_special_object_repr(cur_frame), self.get_wrapped_repr(instr.arg)]
         }, opcode)
       elif opname[opcode] == "LOAD_DEREF":
         rep = object_id_stack[0]
@@ -205,7 +209,7 @@ class OperatorApply(EventReceiver):
         resolved_frame = self.get_var_reference_frame(cur_frame, instr)
         self.append_to_trace_logger(loc, {
             "name": var_name,
-            "result_and_args": [rep,  self.get_special_object_repr(resolved_frame), var_name],
+            "result_and_args": [rep,  self.get_special_object_repr(resolved_frame), self.get_wrapped_repr(var_name)],
         }, opcode)
       elif opname[opcode] == "LOAD_ATTR":
         rep = object_id_stack[0]
@@ -214,18 +218,18 @@ class OperatorApply(EventReceiver):
         else:
           collection = self.pre_op_stack.pop()
           self.append_to_trace_logger(loc, {
-              "result_and_args": (rep, collection, instr.arg)
+              "result_and_args": (rep, collection, self.get_wrapped_repr(instr.arg))
           }, opcode)
       elif opname[opcode] == "STORE_NAME" or opname[opcode] == "STORE_FAST":
         rep = object_id_stack[0]
         self.append_to_trace_logger(loc, {
-            "result_and_args": [None, self.get_special_object_repr(cur_frame), instr.arg, rep],
+            "result_and_args": [self.novalue, self.get_special_object_repr(cur_frame), self.get_wrapped_repr(instr.arg), rep],
             "name": instr.arg,
         }, opcode)
       elif opname[opcode] == "STORE_ATTR":
         rep = object_id_stack[0]
         self.append_to_trace_logger(loc, {
-            "operand": [None, rep, instr.arg, object_id_stack[1]],
+            "operand": [self.novalue, rep, self.get_wrapped_repr(instr.arg), object_id_stack[1]],
             "name": instr.arg,
         }, opcode)
       elif opname[opcode] == "STORE_DEREF":
@@ -234,7 +238,7 @@ class OperatorApply(EventReceiver):
         resolved_frame = self.get_var_reference_frame(cur_frame, instr)
         self.append_to_trace_logger(loc, {
             "name": var_name,
-            "result_and_args": [rep, self.get_special_object_repr(resolved_frame), var_name],
+            "result_and_args": [rep, self.get_special_object_repr(resolved_frame), self.get_wrapped_repr(var_name)],
         }, opcode)
       elif opname[opcode] == "BINARY_SUBSCR":
         rep = object_id_stack[0]
@@ -245,7 +249,7 @@ class OperatorApply(EventReceiver):
         else:
           collection, index = self.pre_op_stack.pop()
           self.append_to_trace_logger(loc, {
-              "result_and_args": [rep, collection, index],
+              "result_and_args": [rep, collection, self.get_wrapped_repr(index)],
           }, opcode)
       elif opname[opcode] == "STORE_SUBSCR":
         rep = object_id_stack[0]
