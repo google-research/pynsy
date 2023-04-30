@@ -16,8 +16,8 @@ def abstraction(obj):
     return False, obj.shape
   elif isinstance(obj, tuple) or isinstance(obj, list):
     return False, len(obj)
-  elif isinstance(obj, int) or  isinstance(obj, float) or isinstance(obj, str):
-    return False, obj
+  elif isinstance(obj, int) or  isinstance(obj, float) or isinstance(obj, str) or isinstance(obj, bool):
+    return True, obj
   else:
     return False, None
 

@@ -55,7 +55,7 @@ The other instruction specific keys are:
 ## Writing a custom dynamic analysis
 
 One can write a custom dynamic analysis for Python instructions of interest by creating a Pynsy analysis class of the form
-[analyses/shape_logger.py](analyses/shape_logger.py). 
+[analyses/shape_logger.py](pynsy/analyses/shape_logger.py). 
 
 An analysis should override the following functions:
 

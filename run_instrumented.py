@@ -1,5 +1,5 @@
-from instrumentation.module_loader import PatchingPathFinder
-from instrumentation.operator_apply import OperatorApply
+from pynsy.instrumentation.module_loader import PatchingPathFinder
+from pynsy.instrumentation.operator_apply import OperatorApply
 import sys
 import config
 
@@ -10,11 +10,7 @@ patcher.install()
 
 
 def import_method_from_module(s):
-  module_path = s.split(".")
-  m = module_path[-1]
-  PUT = __import__(s, globals(), locals(), [], 0)
-  module_to_load = getattr(PUT, m)
-  return module_to_load
+  return __import__(s, globals(), locals(), [None], 0)
 
 
 receiver = OperatorApply()

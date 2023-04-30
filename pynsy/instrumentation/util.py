@@ -1,11 +1,12 @@
-from bytecode import Bytecode, Instr
 import inspect
-
-from types import CodeType, FrameType
-from typing import Any
 import json
+from types import CodeType
 from types import FrameType
-import inspect
+from typing import Any
+
+from bytecode import Bytecode
+from bytecode import Instr
+
 
 def get_instrumented_program_frame() -> FrameType:
   is_next_frame = False

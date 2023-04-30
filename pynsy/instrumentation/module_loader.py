@@ -1,14 +1,19 @@
-import sys
-from importlib.abc import MetaPathFinder, Loader
+from importlib.abc import Loader
+from importlib.abc import MetaPathFinder
 from importlib.machinery import ModuleSpec
 from types import ModuleType
+from typing import Any
+from typing import List
+from typing import Optional
+from typing import Sequence
+from typing import Union
+
 import config
+import sys
 
-from .instrument_nested import extract_all_codeobjects, instrument_extracted
 from .event_receiver import call_all_receivers
-
-from typing import Any, List, Optional, Sequence, Union
-from typing_extensions import Literal
+from .instrument_nested import extract_all_codeobjects
+from .instrument_nested import instrument_extracted
 
 _Path = Union[bytes, str]
 

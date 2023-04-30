@@ -1,7 +1,11 @@
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Optional
+
 from bytecode import Bytecode
 
-from typing import Any, Callable, Dict, List, Optional, Union
-from typing_extensions import Literal
 
 class EventReceiver(object):
   current_exit_func: Optional[Callable[[], None]] = None

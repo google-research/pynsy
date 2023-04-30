@@ -1,4 +1,6 @@
-from typing import Any, Dict
+from typing import Any
+from typing import Dict
+
 
 class HeapObjectTracker(object):
   special_key = '_pajama_76538321_'
@@ -14,8 +16,6 @@ class HeapObjectTracker(object):
     return hasattr(obj, '__dict__')
 
   def get_object_id(self, obj: Any) -> int:
-    if isinstance(obj, int) or isinstance(obj, float) or isinstance(obj, str) or isinstance(obj, bool) or obj is None:
-      return 0
     if hasattr(obj, '__dict__') and HeapObjectTracker.special_key in obj.__dict__:
       oid = obj.__dict__[HeapObjectTracker.special_key]
     else:

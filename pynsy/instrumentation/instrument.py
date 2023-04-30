@@ -1,12 +1,12 @@
-from types import CodeType
-
-from _testcapi import instancemethod
-from bytecode import Bytecode, Instr, Label
 import logging
-from .util import clone_bytecode_empty_body
+from types import CodeType
+from typing import cast
 
-from typing import Any, Dict, Optional, Union, cast
-from typing_extensions import Literal
+from bytecode import Bytecode
+from bytecode import Instr
+from bytecode import Label
+
+from .util import clone_bytecode_empty_body
 
 # Mappings from op to the size of the stack to report
 

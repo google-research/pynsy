@@ -1,10 +1,16 @@
 from types import CodeType
-from bytecode import Bytecode, Instr
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Tuple
+
+from bytecode import Bytecode
+from bytecode import Instr
 
 from .instrument import instrument_bytecode
-from .util import clone_bytecode_empty_body, is_const_load_function
+from .util import clone_bytecode_empty_body
+from .util import is_const_load_function
 
-from typing import Any, Dict, List, Tuple
 
 def extract_all_codeobjects(codeobject: CodeType) -> Tuple[Dict[int, Bytecode], Dict[CodeType, int]]:
   seen_objects: List[Any] = []
