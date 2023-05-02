@@ -17,6 +17,21 @@ from .instrument_nested import instrument_extracted
 
 _Path = Union[bytes, str]
 
+def get_longest_filter(path, rules):
+  action = None
+  depth = -1
+  for filter, filter_action in rules:
+    if path.startswith(filter):
+      filter_depth = filter.count('.')
+      if filter_depth > depth:
+        depth = filter_depth
+        action = filter_action
+  return action, depth
+
+def need_instrumentation(pkg_name: str) -> bool:
+  action, depth = get_longest_filter(pkg_name, handle.instrumentation_rules)
+  return action == "instrument" or depth >= 0
+
 class PatchingLoader(Loader):
   name: str
   existing_loader: Loader

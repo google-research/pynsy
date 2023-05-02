@@ -1,3 +1,5 @@
+import json
+
 from pynsy.instrumentation.module_loader import PatchingPathFinder
 from pynsy.instrumentation.operator_apply import OperatorApply
 import sys
@@ -14,8 +16,10 @@ def import_method_from_module(s):
 
 
 receiver = OperatorApply()
-print(sys.argv[1])
-handle.custom_analyzer = import_method_from_module(sys.argv[1])
+print(f"loading config at {sys.argv[1]}")
+with open(sys.argv[1], "r") as f:
+  handle.config = json.load(f)
+handle.custom_analyzer = import_method_from_module(handle.config["analyzer"])
 receiver.__enter__()
 pgm = sys.argv[2]
 sys.argv = sys.argv[2:]
