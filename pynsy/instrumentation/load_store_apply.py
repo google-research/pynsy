@@ -6,7 +6,7 @@ from typing import Dict
 from typing import List
 from typing import Union
 
-import config
+from analyzer_handle import ref
 from bytecode import Bytecode
 from bytecode import Label
 
@@ -46,7 +46,7 @@ class LoadStoreApplyReceiver(EventReceiver):
     super().__init__()
 
   def get_repr(self, obj):
-    ignore, repr = config.custom_analyzer.abstraction(obj)
+    ignore, repr = ref.custom_analyzer.abstraction(obj)
     if not ignore:
       return ObjectId(self.heap_object_tracking.get_object_id(obj)), type(obj), repr
     else:
@@ -91,7 +91,7 @@ class LoadStoreApplyReceiver(EventReceiver):
     if rest:
       for k, v in rest.items():
         record[k] = v
-    record = config.custom_analyzer.process_event(record)
+    record = ref.custom_analyzer.process_event(record)
     if record is not None:
       self.trace_logger.append(record)
 

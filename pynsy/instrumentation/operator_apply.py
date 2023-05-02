@@ -5,7 +5,7 @@ from typing import Dict
 from typing import List
 from typing import Union
 
-import config
+from pynsy import handle
 from bytecode import Bytecode
 from bytecode import CellVar
 from bytecode import FreeVar
@@ -40,18 +40,18 @@ class OperatorApply(EventReceiver):
     self.trace_logger = []
     self.cell_to_frame = {}
     self.exec_len_key = "exec_len"
-    self.novalue = {'id': -1, 'type': type(None), 'abstraction': None}
+    self.novalue = {'id': -1, 'type': None, 'abs': None}
     super().__init__()
 
   def get_wrapped_repr(self, obj):
-    return {'id': 0, 'type': type(obj), 'abstraction': obj}
+    return {'id': 0, 'type': type(obj), 'abs': obj}
 
   def get_repr(self, obj):
-    ignore, repr = config.custom_analyzer.abstraction(obj)
+    ignore, repr = handle.custom_analyzer.abstraction(obj)
     if not ignore:
-      return {'id': ObjectId(self.heap_object_tracking.get_object_id(obj)), 'type': type(obj), 'abstraction': repr}
+      return {'id': ObjectId(self.heap_object_tracking.get_object_id(obj)), 'type': type(obj), 'abs': repr}
     else:
-      return {'id': 0, 'type': type(obj), 'abstraction': repr}
+      return {'id': 0, 'type': type(obj), 'abs': repr}
 
   def get_special_object_repr(self, obj):
     return {'id': ObjectId(self.heap_object_tracking.get_object_id(obj)), 'type': type(obj), 'abstraction': None}
@@ -108,7 +108,7 @@ class OperatorApply(EventReceiver):
     if rest:
       for k, v in rest.items():
         record[k] = v
-    record = config.custom_analyzer.process_event(record)
+    record = handle.custom_analyzer.process_event(record)
     if record is not None:
       self.trace_logger.append(record)
 

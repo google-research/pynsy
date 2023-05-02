@@ -8,7 +8,7 @@ from typing import Optional
 from typing import Sequence
 from typing import Union
 
-import config
+from pynsy import handle
 import sys
 
 from .event_receiver import call_all_receivers
@@ -49,17 +49,17 @@ class PatchingLoader(Loader):
         print("[Python Analysis] Instrumenting module " + self.name)
         id_to_bytecode, code_to_id = extract_all_codeobjects(module_code)
         id_to_bytecode_new_codeobjects = instrument_extracted(id_to_bytecode, code_to_id)
-        if not hasattr(config, "static_program_info"):
-          config.static_program_info = dict()
-        if self.name not in config.static_program_info:
-          config.static_program_info[self.name] = id_to_bytecode
+        if not hasattr(handle, "bytecode"):
+          handle.bytecode = dict()
+        if self.name not in handle.bytecode:
+          handle.bytecode[self.name] = id_to_bytecode
         instrumented = id_to_bytecode_new_codeobjects[code_to_id[module_code]]
         module_name = self.name
 
-        def py_instrument_receiver(stack: List[Any], instr_id: int, method_id: int, is_post: bool) -> None:
+        def pynsy_receiver(stack: List[Any], instr_id: int, method_id: int, is_post: bool) -> None:
           # print(method_id, instr_id, id_to_bytecode[method_id][instr_id])
           call_all_receivers(stack, instr_id, method_id, is_post, id_to_bytecode, module_name)
-        module.__dict__["py_instrument_receiver"] = py_instrument_receiver
+        module.__dict__["pynsy_receiver"] = pynsy_receiver
         exec(instrumented.to_code(), module.__dict__)
         self.finder.patched_modules.append(module.__name__)
       else:

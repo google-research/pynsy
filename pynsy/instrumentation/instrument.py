@@ -194,7 +194,7 @@ def emit_instrument(
   # load the receiver
   instrumented.append(Instr(
       name="LOAD_GLOBAL",
-      arg="py_instrument_receiver",
+      arg="pynsy_receiver",
       lineno=instr.lineno
   ))
 
