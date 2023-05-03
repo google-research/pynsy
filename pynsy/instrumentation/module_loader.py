@@ -30,7 +30,7 @@ def get_longest_filter(path, rules):
 
 def need_instrumentation(pkg_name: str) -> bool:
   action, depth = get_longest_filter(pkg_name, handle.instrumentation_rules)
-  return action == "instrument" or depth >= 0
+  return action == "include" and depth >= 0
 
 class PatchingLoader(Loader):
   name: str
@@ -58,7 +58,7 @@ class PatchingLoader(Loader):
     return self.existing_loader.module_repr(module)
 
   def exec_module(self, module: ModuleType) -> None:
-    if hasattr(self.existing_loader, "get_code") and self.name.startswith("demos."):
+    if hasattr(self.existing_loader, "get_code") and need_instrumentation(self.name):
       module_code = self.existing_loader.get_code(self.name) # type: ignore
       if module_code:
         print("[Python Analysis] Instrumenting module " + self.name)

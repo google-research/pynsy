@@ -1,5 +1,9 @@
-# Pynsy (Pronounced as pinxy): A Python Analysis Framework 
-This sets up a strategy to instrument Python bytecode operations based on calculations of the relevant portion of the stack read or updated by each operation, without any specific logic for different operations.
+# Pynsy (Pronounced as pinsy): A Python Analysis Framework 
+Pynsy is a framework for writing heavy-weight dynamic analyses for Python programs. 
+Pynsy instruments Python bytecode of a target application on-the-fly and provides
+a hook to log or inspect each Python bytecode being executed along with dynamic 
+information about the operands involved in the bytecode.  
+In the distribution you will find several analyses:
 
 ## Installing Pynsy
 
@@ -10,11 +14,11 @@ Run the following command in the python-analysis directory.
 ## Running a custom dynamic analysis defined in a module called `app_module_name` whose main method (or entry method) is `main_method_name`
 
 
-`python3 run_instrumented.py analysis_module_name app_module_name  [list of arguments passed as sys.argv[2:]]`
+`python3 run_instrumented.py config.json app_module_name  [list of arguments passed as sys.argv[3:]]`
 
 For example, to collect shapes of various tensor objects, run:
 
-`python3 run_instrumented.py analyses.load_store_apply demos.mnist `
+`python3 run_instrumented.py config.json demos.mnist `
 
 ## Interpreting results for post-processing
 

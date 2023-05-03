@@ -1,1 +1,4 @@
-{"analyzer": "pynsy.analyses.example1", "include": "demos"}
+{
+  "analyzer": "pynsy.analyses.example1",
+  "instrumentation_rules": [["demos.", "include"], ["pynsy.", "exclude"]]
+}
