@@ -92,7 +92,7 @@ class OperatorApply(EventReceiver):
       # cell = fn_object.__closure__[var_index]
       # return self.heap_object_tracking.get_object_id(cell)
 
-  def append_to_trace_logger(self, loc, rest: Dict = None, opcode = -1, type = None):
+  def call_process_event_on_record(self, loc, rest: Dict = None, opcode = -1, type = None):
     if bool(opcode == -1) == bool(type == None):
       raise Exception("Internal error: Either opcode or type argument must be set")
     record = {
@@ -131,16 +131,16 @@ class OperatorApply(EventReceiver):
           self.function_call_stack.append(stack[0])
           self.function_name_stack.append(stack[0].__name__ if hasattr(stack[0], "__name__") else type(stack[0]))
           function_name = self.function_name_stack[-1]
-          self.append_to_trace_logger(loc, {
+          self.call_process_event_on_record(loc, {
               "name": function_name,
               "result_and_args": [self.novalue] + object_id_stack[1:],
               "indentation": (len(self.loop_stack) + len(self.function_name_stack)) - 1
           }, opcode)
         else:
           self.function_call_stack.pop()
-          object_id_stack = self.convert_stack_to_heap_id(stack)
+#          object_id_stack = self.convert_stack_to_heap_id(stack)
           function_name = self.function_name_stack.pop()
-          self.append_to_trace_logger(loc, {
+          self.call_process_event_on_record(loc, {
               "type": "RETURN_FUNCTION",
               "name": function_name,
               "result_and_args": object_id_stack}, opcode)
@@ -149,7 +149,7 @@ class OperatorApply(EventReceiver):
           self.function_call_stack.append(stack[0])
           self.function_name_stack.append(stack[0].__name__ if hasattr(stack[0], "__name__") else type(stack[0]))
           function_name = self.function_name_stack[-1]
-          self.append_to_trace_logger(loc, {
+          self.call_process_event_on_record(loc, {
               "name": function_name,
               "result_and_args": [self.novalue] + object_id_stack[1:],
               "indentation": (len(self.loop_stack) + len(self.function_name_stack)) - 1
@@ -157,7 +157,7 @@ class OperatorApply(EventReceiver):
         else:
           self.function_call_stack.pop()
           function_name = self.function_name_stack.pop()
-          self.append_to_trace_logger(loc, {
+          self.call_process_event_on_record(loc, {
               "type": "RETURN_METHOD",
               "name": function_name,
               "result_and_args": object_id_stack}, opcode)
@@ -167,7 +167,7 @@ class OperatorApply(EventReceiver):
           self.function_call_stack.append(stack[0])
           self.function_name_stack.append(stack[0].__name__  if hasattr(stack[0], "__name__") else type(stack[0]))
           function_name = self.function_name_stack[-1]
-          self.append_to_trace_logger(loc, {
+          self.call_process_event_on_record(loc, {
               "function_name": function_name,
               "result_and_args": object_id_stack[1:-1] + [keys,],
               "indentation": (len(self.loop_stack) + len(self.function_call_stack)) - 1
@@ -175,24 +175,24 @@ class OperatorApply(EventReceiver):
         else:
           self.function_call_stack.pop()
           function_name = self.function_name_stack.pop()
-          self.append_to_trace_logger(loc, {
+          self.call_process_event_on_record(loc, {
               "type": "RETURN_FUNCTION_KW",
               "name": function_name,
               "result_and_args": object_id_stack}, opcode)
       elif opname[opcode] == "LOAD_CONST":
         rep = object_id_stack[0]
-        self.append_to_trace_logger(loc, {
+        self.call_process_event_on_record(loc, {
             "result_and_args":  [rep]
         }, opcode)
       elif opname[opcode] == "LOAD_GLOBAL":
         rep = object_id_stack[0]
-        self.append_to_trace_logger(loc, {
+        self.call_process_event_on_record(loc, {
             "name": instr.arg,
             "result_and_args": [rep, self.get_wrapped_repr(instr.arg)],
         }, opcode)
       elif opname[opcode] == "LOAD_NAME" or opname[opcode] == "LOAD_FAST":
         rep = object_id_stack[0]
-        self.append_to_trace_logger(loc, {
+        self.call_process_event_on_record(loc, {
             "name": instr.arg,
             "result_and_args": [rep, self.get_special_object_repr(cur_frame), self.get_wrapped_repr(instr.arg)]
         }, opcode)
@@ -200,7 +200,7 @@ class OperatorApply(EventReceiver):
         rep = self.get_special_object_repr(stack[0])
         if not rep['id'].id in self.cell_to_frame:
           self.cell_to_frame[rep['id'].id] = self.get_special_object_repr(cur_frame)['id'].id
-        self.append_to_trace_logger(loc, {
+        self.call_process_event_on_record(loc, {
             "name": instr.arg,
             "result_and_args": [rep, self.get_special_object_repr(cur_frame), self.get_wrapped_repr(instr.arg)]
         }, opcode)
@@ -208,7 +208,7 @@ class OperatorApply(EventReceiver):
         rep = object_id_stack[0]
         var_name = instr.arg.name
         resolved_frame = self.get_var_reference_frame(cur_frame, instr)
-        self.append_to_trace_logger(loc, {
+        self.call_process_event_on_record(loc, {
             "name": var_name,
             "result_and_args": [rep,  self.get_special_object_repr(resolved_frame), self.get_wrapped_repr(var_name)],
         }, opcode)
@@ -218,18 +218,18 @@ class OperatorApply(EventReceiver):
           self.pre_op_stack.append(rep)
         else:
           collection = self.pre_op_stack.pop()
-          self.append_to_trace_logger(loc, {
+          self.call_process_event_on_record(loc, {
               "result_and_args": (rep, collection, self.get_wrapped_repr(instr.arg))
           }, opcode)
       elif opname[opcode] == "STORE_NAME" or opname[opcode] == "STORE_FAST":
         rep = object_id_stack[0]
-        self.append_to_trace_logger(loc, {
+        self.call_process_event_on_record(loc, {
             "result_and_args": [self.novalue, self.get_special_object_repr(cur_frame), self.get_wrapped_repr(instr.arg), rep],
             "name": instr.arg,
         }, opcode)
       elif opname[opcode] == "STORE_ATTR":
         rep = object_id_stack[0]
-        self.append_to_trace_logger(loc, {
+        self.call_process_event_on_record(loc, {
             "operand": [self.novalue, rep, self.get_wrapped_repr(instr.arg), object_id_stack[1]],
             "name": instr.arg,
         }, opcode)
@@ -237,7 +237,7 @@ class OperatorApply(EventReceiver):
         rep = self.get_special_object_repr(stack[0])
         var_name = instr.arg.name
         resolved_frame = self.get_var_reference_frame(cur_frame, instr)
-        self.append_to_trace_logger(loc, {
+        self.call_process_event_on_record(loc, {
             "name": var_name,
             "result_and_args": [rep, self.get_special_object_repr(resolved_frame), self.get_wrapped_repr(var_name)],
         }, opcode)
@@ -249,12 +249,12 @@ class OperatorApply(EventReceiver):
           self.pre_op_stack.append((collection, index))
         else:
           collection, index = self.pre_op_stack.pop()
-          self.append_to_trace_logger(loc, {
+          self.call_process_event_on_record(loc, {
               "result_and_args": [rep, collection, self.get_wrapped_repr(index)],
           }, opcode)
       elif opname[opcode] == "STORE_SUBSCR":
         rep = object_id_stack[0]
-        self.append_to_trace_logger(loc, {
+        self.call_process_event_on_record(loc, {
             "result_and_args": [object_id_stack[1], object_id_stack[2], rep],
         }, opcode)
       elif opname[opcode] == "SETUP_LOOP":
@@ -264,7 +264,7 @@ class OperatorApply(EventReceiver):
           self.pre_op_stack.append((object_id_stack[0], object_id_stack[1]))
         else:
           cur_inputs = self.pre_op_stack.pop()
-          self.append_to_trace_logger(loc, {
+          self.call_process_event_on_record(loc, {
               "result_and_args": [object_id_stack[0], self.get_wrapped_repr(instr.arg), cur_inputs[0], cur_inputs[1]],
           }, opcode)
       elif opname[opcode] in binary_ops:
@@ -272,7 +272,7 @@ class OperatorApply(EventReceiver):
           self.pre_op_stack.append((object_id_stack[0], object_id_stack[1]))
         else:
           cur_inputs = self.pre_op_stack.pop()
-          self.append_to_trace_logger(loc, {
+          self.call_process_event_on_record(loc, {
               "result_and_args": [object_id_stack[0], cur_inputs[0], cur_inputs[1]],
           }, opcode)
       elif opname[opcode] in unary_ops:
@@ -280,7 +280,7 @@ class OperatorApply(EventReceiver):
           self.pre_op_stack.append(object_id_stack[0])
         else:
           cur_input = self.pre_op_stack.pop()
-          self.append_to_trace_logger(loc, {
+          self.call_process_event_on_record(loc, {
               "result_and_args": [object_id_stack[0], cur_input],
           }, opcode)
     self.already_in_receiver = False
