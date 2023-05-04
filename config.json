@@ -1,4 +1,4 @@
 {
-  "analyzer": "pynsy.analyses.key_in_list_analysis",
+  "analyzer": "pynsy.analyses.string_add_analysis",
   "instrumentation_rules": [["demos.", "include"], ["pynsy.", "exclude"]]
 }
