@@ -27,5 +27,5 @@ pgm = sys.argv[2]
 sys.argv = sys.argv[2:]
 print(pgm)
 module_under_test = import_method_from_module(pgm)
-handle.custom_analyzer.process_termination(receiver.trace_logger)
+handle.custom_analyzer.process_termination()
 

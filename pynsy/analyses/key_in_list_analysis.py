@@ -3,6 +3,8 @@ import pandas as pd
 log_file = f"trace_compact.csv"
 
 
+record_list = []
+
 def is_blank(val):
   return val != val
 
@@ -18,9 +20,9 @@ def process_event(record):
   if record["type"] == "CONTAINS_OP":
     if record["result_and_args"][3]["abs"] > 100:
       print(f"Warning: at line {record['lineno']} in {record['module_name']}, the 'key in list' is slow for a list of length {record['result_and_args'][3]['abs']}.")
-  return record
+  record_list.append(record)
 
-def process_termination(record_list):
+def process_termination():
   df = pd.DataFrame(record_list)
   print("Saving raw data as a pandas Dataframe in " + log_file)
   pd.DataFrame.to_csv(df, log_file)

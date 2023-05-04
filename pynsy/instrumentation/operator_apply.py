@@ -37,7 +37,6 @@ class OperatorApply(EventReceiver):
     self.function_name_stack = []
     self.heap_object_tracking = HeapObjectTracker()
     self.pre_op_stack = []
-    self.trace_logger = []
     self.cell_to_frame = {}
     self.exec_len_key = "exec_len"
     self.novalue = {'id': -1, 'type': None, 'abs': None}
@@ -102,15 +101,12 @@ class OperatorApply(EventReceiver):
         "instruction_id": loc[2],
         "lineno": loc[3],
         "type": type if type else opname[opcode],
-        "execution_index": len(self.trace_logger),
         "indentation": (len(self.loop_stack) + len(self.function_call_stack))
     }
     if rest:
       for k, v in rest.items():
         record[k] = v
-    record = handle.custom_analyzer.process_event(record)
-    if record is not None:
-      self.trace_logger.append(record)
+    handle.custom_analyzer.process_event(record)
 
 
 

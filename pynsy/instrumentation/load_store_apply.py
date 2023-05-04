@@ -85,7 +85,6 @@ class LoadStoreApplyReceiver(EventReceiver):
         "lineno": loc[3],
         "before": before,
         "type": type if type else opname[opcode],
-        "execution_index": len(self.trace_logger),
         "indentation": (len(self.loop_stack) + len(self.function_call_stack))
     }
     if rest:
