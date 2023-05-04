@@ -263,6 +263,14 @@ class OperatorApply(EventReceiver):
         }, opcode)
       elif opname[opcode] == "SETUP_LOOP":
         self.loop_stack.append(instr.arg)
+      elif opname[opcode] == "CONTAINS_OP" or opname[opcode] == "IS_OP":
+        if not is_post:
+          self.pre_op_stack.append((object_id_stack[0], object_id_stack[1]))
+        else:
+          cur_inputs = self.pre_op_stack.pop()
+          self.append_to_trace_logger(loc, {
+              "result_and_args": [object_id_stack[0], self.get_wrapped_repr(instr.arg), cur_inputs[0], cur_inputs[1]],
+          }, opcode)
       elif opname[opcode] in binary_ops:
         if not is_post:
           self.pre_op_stack.append((object_id_stack[0], object_id_stack[1]))

@@ -82,7 +82,6 @@ class PatchingLoader(Loader):
     else:
       self.existing_loader.exec_module(module)
 
-modules_to_skip: List[str] = []
 
 class PatchingPathFinder(MetaPathFinder):
   existing_importers: List[MetaPathFinder]
@@ -106,7 +105,7 @@ class PatchingPathFinder(MetaPathFinder):
     for importer in self.existing_importers:
       if hasattr(importer, "find_spec"):
         existing_spec = importer.find_spec(fullname, path, target)
-        if existing_spec is not None and existing_spec.loader is not None and fullname not in modules_to_skip:
+        if existing_spec is not None and existing_spec.loader is not None:
           existing_spec.loader = PatchingLoader(
             fullname,
             existing_spec.loader, # type: ignore

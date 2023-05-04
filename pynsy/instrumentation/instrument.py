@@ -79,6 +79,8 @@ pre_instrumented_ops = {
 
     "LOAD_ATTR": 1,
 
+    "CONTAINS_OP": 2,
+    "IS_OP": 2,
     "COMPARE_OP": 2,
 
     "INPLACE_POWER": 2,
@@ -140,6 +142,8 @@ post_instrumented_ops = {
     "BINARY_XOR": 1,
     "BINARY_OR": 1,
 
+    "CONTAINS_OP": 1,
+    "IS_OP": 1,
     "COMPARE_OP": 1,
 
     "INPLACE_POWER": 1,
@@ -296,9 +300,6 @@ def instrument_bytecode(byte_code: Bytecode, method_id: int = 0) -> Bytecode:
           get_args_num(pre_instrumented_ops[instr.name], instr),
           method_id, False
       )
-
-    if isinstance(instr, Instr) and instr.name == "LOAD_CLOSURE":
-      print(instr.name)
 
     if isinstance(instr, Instr) \
         and instr.name not in pre_instrumented_ops \
