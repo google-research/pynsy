@@ -20,12 +20,13 @@ print(f"loading config at {sys.argv[1]}")
 with open(sys.argv[1], "r") as f:
   handle.config = json.load(f)
 handle.instrumentation_rules = handle.config["instrumentation_rules"]
-handle.custom_analyzer = import_method_from_module(handle.config["analyzer"])
+handle.custom_analyzer = [import_method_from_module(m) for m in handle.config["analyzers"]]
 
 receiver.__enter__()
 pgm = sys.argv[2]
 sys.argv = sys.argv[2:]
 print(pgm)
 module_under_test = import_method_from_module(pgm)
-handle.custom_analyzer.process_termination()
+for m in handle.custom_analyzer: m.process_termination()
+
 

@@ -22,6 +22,14 @@ from .util import get_instrumented_program_frame
 def getlineno(id_to_orig_bytecode, method_id, instr_id):
   return str(id_to_orig_bytecode[method_id][instr_id].lineno)
 
+
+def retrieve_record_element(record, i):
+  result_and_args = record["result_and_args"]
+  value_vector = [r if isinstance(r, dict) else r[i] for r in result_and_args]
+  record = record.copy()
+  record["result_and_args"] = value_vector
+  return record
+
 class OperatorApply(EventReceiver):
   loop_stack: List[Any]
   function_call_stack: List[Any]
@@ -46,11 +54,10 @@ class OperatorApply(EventReceiver):
     return {'id': 0, 'type': type(obj), 'abs': obj}
 
   def get_repr(self, obj):
-    ignore, repr = handle.custom_analyzer.abstraction(obj)
-    if not ignore:
-      return {'id': ObjectId(self.heap_object_tracking.get_object_id(obj)), 'type': type(obj), 'abs': repr}
-    else:
-      return {'id': 0, 'type': type(obj), 'abs': repr}
+    ignore_repr_list = [m.abstraction(obj) for m in handle.custom_analyzer]
+    return [{'id': ObjectId(self.heap_object_tracking.get_object_id(obj)), 'type': type(obj), 'abs': repr}
+            if not ignore else {'id': 0, 'type': type(obj), 'abs': repr}
+            for ignore, repr in ignore_repr_list]
 
   def get_special_object_repr(self, obj):
     return {'id': ObjectId(self.heap_object_tracking.get_object_id(obj)), 'type': type(obj), 'abstraction': None}
@@ -106,7 +113,9 @@ class OperatorApply(EventReceiver):
     if rest:
       for k, v in rest.items():
         record[k] = v
-    handle.custom_analyzer.process_event(record)
+    for i, m in enumerate(handle.custom_analyzer):
+      record_element = retrieve_record_element(record, i)
+      m.process_event(record_element)
 
 
 
