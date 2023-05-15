@@ -54,6 +54,9 @@ binary_ops = {
     "INPLACE_XOR": 2,
     "INPLACE_OR": 2,
     "MAKE_FUNCTION": 2,
+
+    # Python 3.11
+    "BINARY_OP": 2,
 }
 
 unary_ops = {
@@ -119,6 +122,19 @@ pre_instrumented_ops = {
     "CALL_METHOD": -1,
     "CALL_FUNCTION_KW": -1,
     "RETURN_VALUE": 1,
+
+    # Python 3.11
+    "RESUME": 0,
+    "NOP": 0,
+    "PRECALL": 0,
+    "PUSH_NULL": 0,
+    "FOR_ITER": 1,
+    "COPY": 1,
+    "SWAP": 2,
+    "CALL": -1,
+
+    "IMPORT_FROM": 1,
+    "IMPORT_NAME": 1,
 }
 
 post_instrumented_ops = {
@@ -180,21 +196,31 @@ def emit_instrument(
     method_id: int,
     is_post: bool,
 ) -> None:
+  # print('emit_instrument', instrumented)
+  print('emit_instrument', instr)
+
   if stacksize > 0:
     instrumented.append(
         Instr(name="BUILD_LIST", arg=stacksize, lineno=instr.lineno)
     )
 
     # make a copy to send to the receiver
-    instrumented.append(Instr(name="DUP_TOP", lineno=instr.lineno))
+    # instrumented.append(Instr(name="DUP_TOP", lineno=instr.lineno))
+    # Python 3.11: use COPY instead of DUP_TOP.
+    instrumented.append(Instr(name="COPY", arg=1, lineno=instr.lineno))
 
   # load the receiver
-  instrumented.append(
-      Instr(name="LOAD_GLOBAL", arg="pynsy_receiver", lineno=instr.lineno)
-  )
+  instrumented.append(Instr(
+      name="LOAD_GLOBAL",
+      # arg="pynsy_receiver",
+      arg=(True, "pynsy_receiver"),
+      lineno=instr.lineno
+  ))
 
   if stacksize > 0:
     instrumented.append(Instr(name="ROT_TWO", lineno=instr.lineno))
+    # Python 3.11: use SWAP instead of ROT_TWO.
+    instrumented.append(Instr(name="SWAP", arg=2, lineno=instr.lineno))
   else:
     instrumented.append(
         Instr(name="BUILD_LIST", arg=stacksize, lineno=instr.lineno)
@@ -215,8 +241,12 @@ def emit_instrument(
   # call the receiver
   instrumented.append(
       Instr(
-          name="CALL_FUNCTION",
-          arg=4,  # number of arguments # careful.  Change it if you change the arguments being passed above
+          # name="CALL_FUNCTION",
+          # Python 3.11: opcode renamed.
+          name="CALL",
+          # Number of arguments.
+          # Be careful. Update if the arguments being passed above are changed.
+          arg=4,
           lineno=instr.lineno,
       )
   )
@@ -227,7 +257,9 @@ def emit_instrument(
   if stacksize > 1:
     # reverse the stored stack since it is unpacked right-to-left
     instrumented.append(
-        Instr(name="LOAD_GLOBAL", arg="reversed", lineno=instr.lineno)
+        # Instr(name="LOAD_GLOBAL", arg="reversed", lineno=instr.lineno)
+        # Python 3.11: opcode type changed.
+        Instr(name="LOAD_GLOBAL", arg=(True, "reversed"), lineno=instr.lineno)
     )
 
     # move the argument after the callable
