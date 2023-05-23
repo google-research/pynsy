@@ -5,18 +5,17 @@ from typing import Dict
 from typing import List
 from typing import Union
 
+from pynsy.instrumentation.heap_object_tracking import HeapObjectTracker
 from pynsy import handle
 from bytecode import Bytecode
 from bytecode import CellVar
 from bytecode import FreeVar
 from bytecode import Label
 
-from .event_receiver import EventReceiver
-from .heap_object_tracking import HeapObjectTracker
-from .instrument import binary_ops
-from .instrument import unary_ops
-from .util import ObjectId
-from .util import get_instrumented_program_frame
+from pynsy.instrumentation.instrument import binary_ops
+from pynsy.instrumentation.instrument import unary_ops
+from pynsy.instrumentation.util import ObjectId
+from pynsy.instrumentation.util import get_instrumented_program_frame
 
 
 def getlineno(id_to_orig_bytecode, method_id, instr_id):
@@ -30,7 +29,7 @@ def retrieve_record_element(record, i):
   record["result_and_args"] = value_vector
   return record
 
-class OperatorApply(EventReceiver):
+class OperatorApply():
   loop_stack: List[Any]
   function_call_stack: List[Any]
   function_name_stack: List[Any]
