@@ -7,6 +7,8 @@ In the distribution you will find several analyses:
 
 ## Installing Pynsy
 
+Tested on Python 3.9 and 3.10.  Does not work for Python 3.11.
+
 Run the following command in the python-analysis directory.
 
 `pip3 install -r requirements.txt`
@@ -19,6 +21,19 @@ Run the following command in the python-analysis directory.
 For example, to check if we are calling `x in L` where L is a long list, we can run the following command:
 
 `python3 pynsy.py config.json demos.key_in_list` `
+
+Another way to invoke Pynsy as a library, you can perform all the imports with Pynsy as follows, say in api_template.py:
+
+```
+from pynsy.instrumentation.module_loader import instrument_imports
+with instrument_imports():
+    import demos.key_in_list
+```
+
+One could then run the following command:
+`python3 api_template.py config.json ignore` 
+
+
 
 ## Interpreting results for post-processing
 
