@@ -1,0 +1,50 @@
+[project]
+name = "pynsy"
+description = "A Python analysis framework."
+readme = "README.md"
+requires-python = ">=3.7"
+license = {file = "LICENSE"}
+authors = [{name = "Pynsy authors", email="pynsy-dev@google.com"}]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "License :: OSI Approved :: Apache Software License",
+    "Intended Audience :: Science/Research",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+keywords = []
+
+# pip dependencies of the project.
+dependencies = [
+    "absl-py",
+    "bytecode",
+    "config",
+    "jax",
+    "jaxlib",
+    "numpy",
+    "mypy",
+    "pandas",
+    "typing_extensions",
+]
+
+# This is set automatically by flit using `pynsy.__version__`.
+dynamic = ["version"]
+
+[project.urls]
+homepage = "https://github.com/google-research/pynsy"
+repository = "https://github.com/google-research/pynsy"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-xdist",
+    "pylint>=2.6.0",
+    "yapf",
+    "snapshottest",
+]
+
+[build-system]
+requires = ["flit_core >=3.5,<4"]
+build-backend = "flit_core.buildapi"
+
