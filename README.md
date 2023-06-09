@@ -23,14 +23,15 @@ pip3 install -e .
 Use the following command to run a custom analysis defined in `config.json`.
 
 ```bash
-python3 pynsy.py config.json <module> <arguments...>
+python3 -m pynsy.main config.json <module> <arguments...>
 ```
 
 For example, to check for expensive list membership operations (`x in L` where
 `L` is a long list), we can run the following command:
 
 ```bash
-python3 pynsy.py config.json demos.key_in_list
+python3 -m pynsy.main config.json demos.key_in_list
+python3 -m pynsy.main config.json demos.mnist
 ```
 
 ## Processing analysis results
