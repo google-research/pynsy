@@ -9,10 +9,10 @@ from typing import Optional
 from typing import Sequence
 from typing import Union
 
-from operator_apply import OperatorApply
 from pynsy import handle
 import sys
 
+from .operator_apply import OperatorApply
 from .instrument_nested import extract_all_codeobjects
 from .instrument_nested import instrument_extracted
 
