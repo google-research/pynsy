@@ -6,6 +6,3 @@ print(pgm)
 
 with instrument_imports():
   import_method_from_module(pgm)
-
-
-

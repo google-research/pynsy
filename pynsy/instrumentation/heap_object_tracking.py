@@ -8,15 +8,18 @@ class HeapObjectTracker(object):
   id_to_objects: Dict[int, Any]
 
   def __init__(self) -> None:
-    self.objects_to_id = {} #WeakKeyDictionary() does not support list, dict
-    self.id_to_objects = {} #WeakValueDictionary() does not support list, dict
+    self.objects_to_id = {}  # WeakKeyDictionary() does not support list, dict
+    self.id_to_objects = {}  # WeakValueDictionary() does not support list, dict
     self.next_object_id = 1
 
   def is_heap_object(self, obj: Any) -> bool:
     return hasattr(obj, '__dict__')
 
   def get_object_id(self, obj: Any) -> int:
-    if hasattr(obj, '__dict__') and HeapObjectTracker.special_key in obj.__dict__:
+    if (
+        hasattr(obj, '__dict__')
+        and HeapObjectTracker.special_key in obj.__dict__
+    ):
       oid = obj.__dict__[HeapObjectTracker.special_key]
     else:
       oid = id(obj)

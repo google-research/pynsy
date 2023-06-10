@@ -1,8 +1,9 @@
-
 a = 1
+
 
 def f():
   b = 3
+
   def g():
     c = 2
     nonlocal b
@@ -15,5 +16,6 @@ def f():
 
   print(b)
   return g
+
 
 f()()

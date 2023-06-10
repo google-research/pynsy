@@ -10,12 +10,15 @@ from bytecode import Instr
 
 def get_instrumented_program_frame() -> FrameType:
   is_next_frame = False
-  for frame_container in inspect.getouterframes(inspect.currentframe()):
+  for frame_container in inspect.getouterframes(
+      inspect.currentframe(), context=0
+  ):
     if is_next_frame:
       return frame_container.frame
     elif frame_container.function == "pynsy_receiver":
       is_next_frame = True
   raise Exception("Frame in instrumented code not found")
+
 
 def serialize(obj):
   if isinstance(obj, ObjectId):
@@ -30,6 +33,7 @@ def serialize(obj):
 
 # newtype to track object IDs
 class ObjectId(object):
+
   def __init__(self, id: int) -> None:
     self.id = id
 
@@ -42,7 +46,7 @@ class ObjectId(object):
     return False
 
   def __repr__(self):
-    return '#' + str(self.id)
+    return "#" + str(self.id)
 
 
 def clone_bytecode_empty_body(code: Bytecode) -> Bytecode:
@@ -63,5 +67,8 @@ def clone_bytecode_empty_body(code: Bytecode) -> Bytecode:
 
 
 def is_const_load_function(instr: object) -> bool:
-  return isinstance(instr, Instr) and instr.name == "LOAD_CONST" and isinstance(
-      instr.arg, CodeType)
+  return (
+      isinstance(instr, Instr)
+      and instr.name == "LOAD_CONST"
+      and isinstance(instr.arg, CodeType)
+  )

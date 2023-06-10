@@ -12,7 +12,9 @@ from .util import clone_bytecode_empty_body
 from .util import is_const_load_function
 
 
-def extract_all_codeobjects(codeobject: CodeType) -> Tuple[Dict[int, Bytecode], Dict[CodeType, int]]:
+def extract_all_codeobjects(
+    codeobject: CodeType,
+) -> Tuple[Dict[int, Bytecode], Dict[CodeType, int]]:
   seen_objects: List[Any] = []
   next_method_id = 0
 
@@ -37,7 +39,11 @@ def extract_all_codeobjects(codeobject: CodeType) -> Tuple[Dict[int, Bytecode], 
   explore(codeobject)
   return method_id_to_bytecode, code_object_to_id
 
-def compile_and_swap(id_to_instrumented_bytecode: Dict[int, Bytecode], code_to_id: Dict[CodeType, int]) -> Dict[int, Bytecode]:
+
+def compile_and_swap(
+    id_to_instrumented_bytecode: Dict[int, Bytecode],
+    code_to_id: Dict[CodeType, int],
+) -> Dict[int, Bytecode]:
   seen_objects = []
 
   method_id_to_compiled: Dict[int, CodeType] = {}
@@ -52,11 +58,13 @@ def compile_and_swap(id_to_instrumented_bytecode: Dict[int, Bytecode], code_to_i
       out = clone_bytecode_empty_body(id_to_instrumented_bytecode[method_id])
       for elem in id_to_instrumented_bytecode[method_id]:
         if is_const_load_function(elem) and elem.arg in code_to_id:
-          out.append(Instr(
-            name = "LOAD_CONST",
-            arg = explore(code_to_id[elem.arg]),
-            lineno = elem.lineno
-          ))
+          out.append(
+              Instr(
+                  name="LOAD_CONST",
+                  arg=explore(code_to_id[elem.arg]),
+                  lineno=elem.lineno,
+              )
+          )
         else:
           out.append(elem)
 
@@ -69,15 +77,23 @@ def compile_and_swap(id_to_instrumented_bytecode: Dict[int, Bytecode], code_to_i
 
   return method_id_to_swapped
 
-def instrument_extracted(id_to_bytecode: Dict[int, Bytecode], code_to_id: Dict[CodeType, int]) -> Dict[int, Bytecode]:
+
+def instrument_extracted(
+    id_to_bytecode: Dict[int, Bytecode], code_to_id: Dict[CodeType, int]
+) -> Dict[int, Bytecode]:
   id_to_instrumented_bytecode = {}
   for method_id in id_to_bytecode.keys():
-    id_to_instrumented_bytecode[method_id] = instrument_bytecode(id_to_bytecode[method_id], method_id)
+    id_to_instrumented_bytecode[method_id] = instrument_bytecode(
+        id_to_bytecode[method_id], method_id
+    )
 
   return compile_and_swap(id_to_instrumented_bytecode, code_to_id)
 
+
 def instrument_nested_code(codeobject: CodeType) -> Bytecode:
   id_to_bytecode, code_to_id = extract_all_codeobjects(codeobject)
-  id_to_bytecode_new_codeobjects = instrument_extracted(id_to_bytecode, code_to_id)
+  id_to_bytecode_new_codeobjects = instrument_extracted(
+      id_to_bytecode, code_to_id
+  )
 
   return id_to_bytecode_new_codeobjects[code_to_id[codeobject]]

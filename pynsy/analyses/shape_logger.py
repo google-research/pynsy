@@ -8,8 +8,8 @@ import pandas as pd
 curr_dt = datetime.now()
 
 timestamp = int(round(curr_dt.timestamp()))
-columns = ['operand', 'operand1', 'operand2', 'args_list', 'base', 'index']
-keys = ['module_name', 'method_id', 'instruction_id', 'lineno', 'type']
+columns = ["operand", "operand1", "operand2", "args_list", "base", "index"]
+keys = ["module_name", "method_id", "instruction_id", "lineno", "type"]
 
 nick_names = {
     "UNARY_POSITIVE": "+",
@@ -18,7 +18,6 @@ nick_names = {
     "UNARY_INVERT": "invert",
     "GET_ITER": "iter",
     "GET_YIELD_FROM_ITER": "yield",
-
     "BINARY_POWER": "**",
     "BINARY_MULTIPLY": "*",
     "BINARY_MATRIX_MULTIPLY": "matmul",
@@ -33,9 +32,7 @@ nick_names = {
     "BINARY_AND": "&",
     "BINARY_XOR": "^",
     "BINARY_OR": "|",
-
     "COMPARE_OP": "cmp",
-
     "INPLACE_POWER": "**",
     "INPLACE_MULTIPLY": "*",
     "INPLACE_MATRIX_MULTIPLY": "matmul",
@@ -49,9 +46,7 @@ nick_names = {
     "INPLACE_AND": "&",
     "INPLACE_XOR": "^",
     "INPLACE_OR": "|",
-
     "MAKE_FUNCTION": "def",
-
     "LOAD_NAME": "load",
     "LOAD_FAST": "load",
     "LOAD_DEREF": "load",
@@ -59,14 +54,12 @@ nick_names = {
     "LOAD_ATTR": "load",
     "LOAD_CONST": "load",
     "LOAD_GLOBAL": "load",
-
     "CALL_FUNCTION": "call",
     "CALL_FUNCTION_KW": "call",
     "CALL_METHOD": "call",
     "RETURN_FUNCTION": "call",
     "RETURN_FUNCTION_KW": "call",
-    "RETURN_METHOD": "call"
-
+    "RETURN_METHOD": "call",
 }
 
 object_name_space = dict()
@@ -83,42 +76,57 @@ def is_non_None_row(row):
   for col in columns:
     if isinstance(row[col], tuple):
       return True
-  if row['args_list'] is not None and isinstance(row['args_list'], list):
-    curr_value = row['args_list']
+  if row["args_list"] is not None and isinstance(row["args_list"], list):
+    curr_value = row["args_list"]
     for arg in curr_value:
       if isinstance(arg, tuple):
         return True
   return False
 
+
 def has_result(row):
-  return isinstance(row['result'], tuple)
+  return isinstance(row["result"], tuple)
+
 
 def is_blank(val):
   return val != val
 
+
 def result_and_args(row):
-  if row['type'] == 'LOAD_ATTR':
-    row['result_and_args'] = [row['result'], row['base'], row['attr_name']]
-  elif row['type'] == 'STORE_ATTR':
-    row['result_and_args'] = [row['result'], row['base'], row['attr_name'], row['operand']]
-  elif row['type'] == 'BINARY_SUBSCR':
-    row['result_and_args'] = [row['result'], row['base'], row['index']]
-  elif row['type'] == 'STORE_SUBSCR':
-    row['result_and_args'] = [row['result'], row['base'], row['index'], row['operand']]
-  elif not is_blank(row['operand']):
-    row['result_and_args'] = [row['result'], row['operand']]
-  elif not is_blank(row['operand1']) or not is_blank(row['operand2']):
-    row['result_and_args'] = [row['result'], row['operand1'], row['operand2']]
-  elif not is_blank(row['args_list']):
-    row['result_and_args'] = [row['result']] + row['args_list']
+  if row["type"] == "LOAD_ATTR":
+    row["result_and_args"] = [row["result"], row["base"], row["attr_name"]]
+  elif row["type"] == "STORE_ATTR":
+    row["result_and_args"] = [
+        row["result"],
+        row["base"],
+        row["attr_name"],
+        row["operand"],
+    ]
+  elif row["type"] == "BINARY_SUBSCR":
+    row["result_and_args"] = [row["result"], row["base"], row["index"]]
+  elif row["type"] == "STORE_SUBSCR":
+    row["result_and_args"] = [
+        row["result"],
+        row["base"],
+        row["index"],
+        row["operand"],
+    ]
+  elif not is_blank(row["operand"]):
+    row["result_and_args"] = [row["result"], row["operand"]]
+  elif not is_blank(row["operand1"]) or not is_blank(row["operand2"]):
+    row["result_and_args"] = [row["result"], row["operand1"], row["operand2"]]
+  elif not is_blank(row["args_list"]):
+    row["result_and_args"] = [row["result"]] + row["args_list"]
   else:
-    row['result_and_args'] = [row['result']]
+    row["result_and_args"] = [row["result"]]
   return row
 
+
 def wrap_result(row):
-  if isinstance(row['result'], tuple):
-    row['result_and_args'] = [row['result']]
+  if isinstance(row["result"], tuple):
+    row["result_and_args"] = [row["result"]]
   return row
+
 
 class DimensionSymbol:
   counter = 0
@@ -128,12 +136,15 @@ class DimensionSymbol:
     DimensionSymbol.counter += 1
 
   def __repr__(self):
-    return 'd' + str(self.val)
+    return "d" + str(self.val)
 
 
 def trim_locations():
   global locationToDimension
-  locationToDimension = {k:v for k, v in locationToDimension.items() if is_shape(v[0])}
+  locationToDimension = {
+      k: v for k, v in locationToDimension.items() if is_shape(v[0])
+  }
+
 
 def flatten(l):
   ret = []
@@ -143,22 +154,25 @@ def flatten(l):
         ret = ret + list(t[2])
   return ret
 
+
 def is_shape_value(value):
   return isinstance(value, tuple) and len(value) == 3 and is_shape(value[2])
+
 
 def is_shape(s):
   return isinstance(s, list) or isinstance(s, tuple)
 
+
 def get_constraints(row):
-  name = ''
-  if not is_blank(row['var_name']):
-    name = row['var_name']
-  elif not is_blank(row['function_name']):
-    name = str(row['function_name']) + '()'
-  elif not is_blank(row['attr_name']):
-    name = '.' + row['attr_name']
+  name = ""
+  if not is_blank(row["var_name"]):
+    name = row["var_name"]
+  elif not is_blank(row["function_name"]):
+    name = str(row["function_name"]) + "()"
+  elif not is_blank(row["attr_name"]):
+    name = "." + row["attr_name"]
   key = tuple([row[x] for x in keys] + [name])
-  value = row['result']
+  value = row["result"]
   type = None
   if key not in locationToDimension:
     if is_shape_value(value):
@@ -166,7 +180,10 @@ def get_constraints(row):
       if oid in objectIdToDimension:
         shape = objectIdToDimension[oid][1]
         if shape != value[2]:
-          logging.warning("Inference algorithm's assumption that a tensor's shape is invariant is invalid.")
+          logging.warning(
+              "Inference algorithm's assumption that a tensor's shape is"
+              " invariant is invalid."
+          )
           raise Exception
         type = objectIdToDimension[oid][0]
       else:
@@ -189,14 +206,16 @@ def get_constraints(row):
       state.update(state_update)
       states.append(dict(state))
 
+
 def format_dimension(i):
   if i in name_space:
     return name_space[i]
   else:
     return f"d{i}"
 
+
 def str_solution(solution):
-  ret = [""]*len(solution)
+  ret = [""] * len(solution)
   for i, v in enumerate(solution):
     if isinstance(v, int):
       ret[i] = format_dimension(i)
@@ -212,8 +231,9 @@ def str_solution(solution):
       ret[i] = f"{s}"
   return ret
 
+
 def find_solution(np_data, n_symbols):
-  non_zero_indices = (np_data!=0).argmax(axis=0)
+  non_zero_indices = (np_data != 0).argmax(axis=0)
   max_variables = 4
   solution = [i for i in range(n_symbols)]
   coeffs = [1, 2, 3]
@@ -222,10 +242,12 @@ def find_solution(np_data, n_symbols):
     pick_n_vars = itertools.combinations(domain, n_vars)
     for vars in pick_n_vars:
       if all(map(lambda x: isinstance(solution[x], int), vars)):
-        coeff_iterator = itertools.combinations_with_replacement(coeffs, n_vars - 1)
+        coeff_iterator = itertools.combinations_with_replacement(
+            coeffs, n_vars - 1
+        )
         for cs in coeff_iterator:
           b = np.zeros((n_symbols,), dtype=int)
-          for c, var in itertools.zip_longest(cs, vars, fillvalue = -1):
+          for c, var in itertools.zip_longest(cs, vars, fillvalue=-1):
             b[var] = c
           fr = max([non_zero_indices[var] for var in vars])
           r = np_data.dot(b)
@@ -241,17 +263,19 @@ def get_name(type, name):
   else:
     return nick_names[type]
 
+
 def abstraction(obj):
-  if hasattr(obj, 'shape'):
+  if hasattr(obj, "shape"):
     return False, obj.shape
-  elif isinstance(obj, int) or  isinstance(obj, float) or isinstance(obj, str):
+  elif isinstance(obj, int) or isinstance(obj, float) or isinstance(obj, str):
     return False, obj
   return True, None
 
+
 def process_event(record):
   global last_oid
-  if 'result' in record and is_shape_value(record['result']):
-    last_oid = record['result'][0]
+  if "result" in record and is_shape_value(record["result"]):
+    last_oid = record["result"][0]
   return record
 
 
@@ -259,6 +283,7 @@ def process_names():
   for oid in object_name_space.keys():
     for d, n in zip(objectIdToDimension[oid][0], object_name_space[oid]):
       name_space[d.val] = n
+
 
 def process_termination(record_list):
   df = pd.DataFrame(record_list)
@@ -279,13 +304,13 @@ def process_termination(record_list):
   n_symbols = DimensionSymbol.counter
   data = []
   for state in states:
-#    row = [float("NaN")] * n_symbols
+    #    row = [float("NaN")] * n_symbols
     row = [0] * n_symbols
     for i, v in state.items():
       row[i.val] = v
     data.append(row)
   np_data = np.array(data)
-#  print(np_data)
+  #  print(np_data)
   pd.DataFrame(np_data).to_csv("matrix_" + log_file)
 
   process_names()
@@ -306,10 +331,13 @@ def process_termination(record_list):
     if key not in line_annotations:
       line_annotations[key] = []
     line_annotations[key].append((k[4], k[5], v[0], v[1][0][2]))
-  with open("annotations_"+log_file, "w") as out:
+  with open("annotations_" + log_file, "w") as out:
     print("Saving annotations ...\n")
     for line, annot in line_annotations.items():
-      s = [(get_name(t, n), tuple([f"{solution[d.val]}" for d in a]), c) for t, n, a, c in annot]
+      s = [
+          (get_name(t, n), tuple([f"{solution[d.val]}" for d in a]), c)
+          for t, n, a, c in annot
+      ]
       out.write(f"{line[0]}@{line[1]}:\n")
       for name, shape, concrete in s:
         out.write(f"    {name}: {shape} {concrete}\n")
@@ -317,4 +345,3 @@ def process_termination(record_list):
 
 def annotate_shape(obj, shape):
   object_name_space[last_oid] = shape
-
