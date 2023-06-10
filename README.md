@@ -23,15 +23,20 @@ pip3 install -e .
 Use the following command to run a custom analysis defined in `config.json`.
 
 ```bash
-python3 -m pynsy.main config.json <module> <arguments...>
+python3 -m pynsy.main --config <config> --module <module> -- <arguments...>
 ```
 
-For example, to check for expensive list membership operations (`x in L` where
-`L` is a long list), we can run the following command:
-
 ```bash
-python3 -m pynsy.main config.json demos.key_in_list
-python3 -m pynsy.main config.json demos.mnist
+# Instrument expensive list membership (`x in list`) calls.
+# These calls could be optimized using `set` or `dict`.
+python3 -m pynsy.main --config config.json --module demos.key_in_list
+
+# Run analysis on JAX MNIST.
+python3 -m pynsy.main --config config.json --module demos.mnist
+
+# Run analysis on a module that does flag-parsing.
+python3 -m pynsy.main --config config.json --module demos.flag_parsing \
+  -- --string "Hello world" x y 10
 ```
 
 ## Processing analysis results

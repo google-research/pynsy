@@ -160,14 +160,13 @@ def import_method_from_module(s):
   return __import__(s, globals(), locals(), [None], 0)
 
 
-def instrument_imports() -> HookManager:
+def instrument_imports(config: str) -> HookManager:
   event_handler = OperatorApply()
-  print(f"loading config at {sys.argv[1]}")
-  with open(sys.argv[1], "r") as f:
+  print(f"Loading config at {config}")
+  with open(config, "r") as f:
     handle.config = json.load(f)
-  handle.instrumentation_rules = handle.config["instrumentation_rules"]
+  handle.instrumentation_rules = handle.config.get("instrumentation_rules", [])
   handle.custom_analyzer = [
-      import_method_from_module(m) for m in handle.config["analyzers"]
+      import_method_from_module(m) for m in handle.config.get("analyzers", [])
   ]
-  sys.argv = sys.argv[2:]
   return HookManager(event_handler)
