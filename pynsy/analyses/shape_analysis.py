@@ -18,7 +18,10 @@ import logging
 import numpy as np
 import pandas as pd
 
-from pynsy.instrumentation import util
+from pynsy.analyses import util
+from pynsy.instrumentation import util as instrumentation_util
+
+ObjectId = instrumentation_util.ObjectId
 
 record_list = []
 
@@ -81,7 +84,6 @@ nick_names = {
 object_name_space = dict()
 name_space = dict()
 last_oid = -1
-log_file = f"trace.csv"
 locationToDimension = dict()
 objectIdToDimension = dict()
 state = dict()
@@ -273,7 +275,7 @@ def process_event(record):
   result_and_args = record.get("result_and_args", None)
   if result_and_args:
     result_id = result_and_args[0]["id"]
-    if isinstance(result_id, util.ObjectId):
+    if isinstance(result_id, ObjectId):
       last_oid = result_id
     record_list.append(record)
 
@@ -286,7 +288,8 @@ def process_names():
 
 def process_termination():
   df = pd.DataFrame(record_list)
-  print("Saving raw data as a pandas Dataframe in " + log_file)
+  log_file = util.get_output_path("shape_analysis", "trace.csv")
+  print("Saving raw data as a pandas DataFrame in " + log_file)
   pd.DataFrame.to_csv(df, log_file)
   indices = df.apply(has_result, axis=1)
   df = df[indices]
@@ -307,7 +310,8 @@ def process_termination():
       row[i.val] = v
     data.append(row)
   np_data = np.array(data)
-  pd.DataFrame(np_data).to_csv("matrix_" + log_file)
+  matrix_file = util.get_output_path("shape_analysis", "matrix.csv")
+  pd.DataFrame(np_data).to_csv(matrix_file)
 
   process_names()
   solution = find_solution(np_data, n_symbols)
@@ -327,8 +331,9 @@ def process_termination():
     if key not in line_annotations:
       line_annotations[key] = []
     line_annotations[key].append((k[4], k[5], v[0], v[1][0]["abs"]))
-  with open("annotations_" + log_file, "w") as out:
-    print("Saving annotations ...\n")
+  annotations_file = util.get_output_path("shape_analysis", "annotations.csv")
+  with open(annotations_file, "w") as out:
+    print(f"Saving annotations to {annotations_file}.\n")
     for line, annot in line_annotations.items():
       s = [
           (get_name(t, n), tuple([f"{solution[d.val]}" for d in a]), c)

@@ -13,8 +13,7 @@
 # limitations under the License.
 
 import pandas as pd
-
-log_file = f"trace_compact.csv"
+from pynsy.analyses import util
 
 record_list = []
 
@@ -43,5 +42,6 @@ def process_event(record):
 def process_termination():
   df = pd.DataFrame(record_list)
   # df = df.explode('result_and_args')
-  print("Saving raw data as a pandas Dataframe in " + log_file)
+  log_file = util.get_output_path("string_add_analysis", "trace.csv")
+  print("Saving raw data as a pandas DataFrame in " + log_file)
   pd.DataFrame.to_csv(df, log_file)
