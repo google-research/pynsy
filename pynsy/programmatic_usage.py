@@ -12,3 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from absl import app
+from absl import flags
+
+from pynsy.instrumentation.module_loader import instrument_imports
+
+_CONFIG_FLAG = flags.DEFINE_string(
+    'config', 'config.json', 'Path to config file.'
+)
+
+
+def main(argv):
+  del argv
+  with instrument_imports(_CONFIG_FLAG.value):
+    # Import any module within this context to instrument it.
+    import pynsy.demos.key_in_list
+
+
+if __name__ == '__main__':
+  app.run(main)

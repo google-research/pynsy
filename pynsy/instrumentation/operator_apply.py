@@ -1,3 +1,17 @@
+# Copyright 2023 The pynsy Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dis import opname
 from types import FrameType
 from typing import Any
@@ -5,17 +19,27 @@ from typing import Dict
 from typing import List
 from typing import Union
 
-from pynsy.instrumentation.heap_object_tracking import HeapObjectTracker
-from pynsy import handle
 from bytecode import Bytecode
 from bytecode import CellVar
 from bytecode import FreeVar
 from bytecode import Label
+from pynsy.instrumentation import heap_object_tracking
+from pynsy.instrumentation import instrument
+from pynsy.instrumentation import util
 
-from pynsy.instrumentation.instrument import binary_ops
-from pynsy.instrumentation.instrument import unary_ops
-from pynsy.instrumentation.util import ObjectId
-from pynsy.instrumentation.util import get_instrumented_program_frame
+binary_ops = instrument.binary_ops
+unary_ops = instrument.unary_ops
+
+HeapObjectTracker = heap_object_tracking.HeapObjectTracker
+
+ObjectId = util.ObjectId
+get_instrumented_program_frame = util.get_instrumented_program_frame
+
+class Handle:
+  """Config object, used as a namespace for attributes."""
+  pass
+
+handle = Handle()
 
 
 def getlineno(id_to_orig_bytecode, method_id, instr_id):

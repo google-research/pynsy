@@ -1,0 +1,9 @@
+{
+  "analyzers": [
+    "pynsy.analyses.shape_logger"
+  ],
+  "instrumentation_rules": {
+    "include": ["demos."],
+    "exclude": ["pynsy."]
+  }
+}

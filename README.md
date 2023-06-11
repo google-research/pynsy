@@ -27,15 +27,21 @@ python3 -m pynsy.main --config <config> --module <module> -- <arguments...>
 ```
 
 ```bash
-# Instrument expensive list membership (`x in list`) calls.
+# Instrument expensive operations in Python, like a dynamic analysis linter.
+#
+# Example: catch expensive list membership (`x in list`) calls.
 # These calls could be optimized using `set` or `dict`.
-python3 -m pynsy.main --config config.json --module demos.key_in_list
+python3 -m pynsy.main --config configs/lint.json --module pynsy.demos.key_in_list
+```
 
-# Run analysis on JAX MNIST.
-python3 -m pynsy.main --config config.json --module demos.mnist
+```bash
+# Run shape analysis on JAX MNIST.
+python3 -m pynsy.main --config configs/shape_analysis.json --module demos.mnist
+```
 
-# Run analysis on a module that does flag-parsing.
-python3 -m pynsy.main --config config.json --module demos.flag_parsing \
+```bash
+# Instrument a module that does flag-parsing.
+python3 -m pynsy.main --config configs/lint.json --module demos.flag_parsing \
   -- --string "Hello world" x y 10
 ```
 
@@ -75,17 +81,24 @@ Pynsy analysis class of the form
 An analysis should define the following functions:
 
 ```python
-def abstraction(obj):
-  # returns a tuple of a bool (indicating whether the abstraction should track the logical address of the object) and
-  # a finite abstraction of the object.
+def abstraction(obj: Any) -> tuple[bool, Any]:
+  """Returns an abstract representation of the given object.
+
+  Args:
+    obj: The object to abstract.
+
+  Returns:
+    A tuple `(bool, Any)` where the first value indicates whether the
+    abstraction should track the location of the object, and the second value
+    is a finite abstraction of the object.
+  """
 
 def process_event(record):
-  # process each event as they are being generated
+  """Process each instrumentation event as it is generated."""
 
 def process_termination():
-  # process the list of events generated at the end of the execution
+  """Process the list of generated events at the end of analysis."""
 ```
 
 Typically, analyses process only specific Python instruction types (e.g.
 function calls, or loads and stores) and ignore others.
-
