@@ -6,7 +6,6 @@ requires-python = ">=3.7"
 license = {file = "LICENSE"}
 authors = [{name = "Pynsy authors", email="pynsy-dev@google.com"}]
 classifiers = [
-    "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
     "License :: OSI Approved :: Apache Software License",
@@ -28,20 +27,22 @@ dependencies = [
     "typing_extensions",
 ]
 
-# This is set automatically by flit using `pynsy.__version__`.
+# `version` is automatically set by flit to use `my_project.__version__`
 dynamic = ["version"]
 
 [project.urls]
 homepage = "https://github.com/google-research/pynsy"
 repository = "https://github.com/google-research/pynsy"
+changelog = "https://github.com/google-research/pynsy/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
+# Development deps (unittest, linting, formating,...)
+# Installed through `pip install -e .[dev]`
 dev = [
     "pytest",
     "pytest-xdist",
     "pylint>=2.6.0",
     "pyink",
-    "snapshottest",
 ]
 
 [tool.pyink]
@@ -52,6 +53,11 @@ pyink-indentation = 2
 pyink-use-majority-quotes = true
 
 [build-system]
-requires = ["flit_core >=3.5,<4"]
+requires = ["flit_core >=3.8,<4"]
 build-backend = "flit_core.buildapi"
 
+[tool.flit.sdist]
+exclude = [
+  # Do not release tests files on PyPI
+  "**/*_test.py",
+]
