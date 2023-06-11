@@ -94,7 +94,7 @@ class OperatorApply:
     return {
         "id": ObjectId(self.heap_object_tracking.get_object_id(obj)),
         "type": type(obj),
-        "abstraction": None,
+        "abs": None,
     }
 
   def handle_jump_target(self, target_op_index: int) -> None:
