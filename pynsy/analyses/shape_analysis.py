@@ -18,10 +18,13 @@ import logging
 import numpy as np
 import pandas as pd
 
+from pynsy.instrumentation import util
+
+record_list = []
+
 curr_dt = datetime.now()
 
 timestamp = int(round(curr_dt.timestamp()))
-columns = ["operand", "operand1", "operand2", "args_list", "base", "index"]
 keys = ["module_name", "method_id", "instruction_id", "lineno", "type"]
 
 nick_names = {
@@ -85,20 +88,8 @@ state = dict()
 states = []
 
 
-def is_non_None_row(row):
-  for col in columns:
-    if isinstance(row[col], tuple):
-      return True
-  if row["args_list"] is not None and isinstance(row["args_list"], list):
-    curr_value = row["args_list"]
-    for arg in curr_value:
-      if isinstance(arg, tuple):
-        return True
-  return False
-
-
 def has_result(row):
-  return isinstance(row["result"], tuple)
+  return row["result_and_args"][0]["abs"] is not None
 
 
 def is_blank(val):
@@ -135,12 +126,6 @@ def result_and_args(row):
   return row
 
 
-def wrap_result(row):
-  if isinstance(row["result"], tuple):
-    row["result_and_args"] = [row["result"]]
-  return row
-
-
 class DimensionSymbol:
   counter = 0
 
@@ -169,7 +154,7 @@ def flatten(l):
 
 
 def is_shape_value(value):
-  return isinstance(value, tuple) and len(value) == 3 and is_shape(value[2])
+  return is_shape(value["abs"])
 
 
 def is_shape(s):
@@ -178,21 +163,20 @@ def is_shape(s):
 
 def get_constraints(row):
   name = ""
-  if not is_blank(row["var_name"]):
-    name = row["var_name"]
+  if not is_blank(row["name"]):
+    name = row["name"]
   elif not is_blank(row["function_name"]):
     name = str(row["function_name"]) + "()"
-  elif not is_blank(row["attr_name"]):
-    name = "." + row["attr_name"]
   key = tuple([row[x] for x in keys] + [name])
-  value = row["result"]
+  value = row["result_and_args"][0]
   type = None
   if key not in locationToDimension:
     if is_shape_value(value):
-      oid = value[0]
+      oid = value["id"]
+      shape = value["abs"]
       if oid in objectIdToDimension:
-        shape = objectIdToDimension[oid][1]
-        if shape != value[2]:
+        old_shape = objectIdToDimension[oid][1]
+        if old_shape != shape:
           logging.warning(
               "Inference algorithm's assumption that a tensor's shape is"
               " invariant is invalid."
@@ -200,9 +184,8 @@ def get_constraints(row):
           raise Exception
         type = objectIdToDimension[oid][0]
       else:
-        shape = value[2]
         shape_type = []
-        for d in shape:
+        for _ in shape:
           shape_type.append(DimensionSymbol())
         objectIdToDimension[oid] = (shape_type, shape)
         type = shape_type
@@ -214,7 +197,7 @@ def get_constraints(row):
   symbolic_dimensions = locationToDimension[key][0]
   if is_shape(symbolic_dimensions):
     value = locationToDimension[key][1][-1]
-    state_update = dict(zip(symbolic_dimensions, value[2]))
+    state_update = dict(zip(symbolic_dimensions, value["abs"]))
     if not (state_update.items() <= state.items()):
       state.update(state_update)
       states.append(dict(state))
@@ -280,16 +263,19 @@ def get_name(type, name):
 def abstraction(obj):
   if hasattr(obj, "shape"):
     return False, obj.shape
-  elif isinstance(obj, int) or isinstance(obj, float) or isinstance(obj, str):
+  elif isinstance(obj, int) or isinstance(obj, float):
     return False, obj
   return True, None
 
 
 def process_event(record):
   global last_oid
-  if "result" in record and is_shape_value(record["result"]):
-    last_oid = record["result"][0]
-  return record
+  result_and_args = record.get("result_and_args", None)
+  if result_and_args:
+    result_id = result_and_args[0]["id"]
+    if isinstance(result_id, util.ObjectId):
+      last_oid = result_id
+    record_list.append(record)
 
 
 def process_names():
@@ -298,13 +284,12 @@ def process_names():
       name_space[d.val] = n
 
 
-def process_termination(record_list):
+def process_termination():
   df = pd.DataFrame(record_list)
   print("Saving raw data as a pandas Dataframe in " + log_file)
   pd.DataFrame.to_csv(df, log_file)
   indices = df.apply(has_result, axis=1)
   df = df[indices]
-  df = df.drop(columns, axis=1)
   df = df.apply(get_constraints, axis=1)
   trim_locations()
   print("locationToDimension")
@@ -317,13 +302,11 @@ def process_termination(record_list):
   n_symbols = DimensionSymbol.counter
   data = []
   for state in states:
-    #    row = [float("NaN")] * n_symbols
     row = [0] * n_symbols
     for i, v in state.items():
       row[i.val] = v
     data.append(row)
   np_data = np.array(data)
-  #  print(np_data)
   pd.DataFrame(np_data).to_csv("matrix_" + log_file)
 
   process_names()
@@ -343,7 +326,7 @@ def process_termination(record_list):
     key = k[0], k[3]
     if key not in line_annotations:
       line_annotations[key] = []
-    line_annotations[key].append((k[4], k[5], v[0], v[1][0][2]))
+    line_annotations[key].append((k[4], k[5], v[0], v[1][0]["abs"]))
   with open("annotations_" + log_file, "w") as out:
     print("Saving annotations ...\n")
     for line, annot in line_annotations.items():

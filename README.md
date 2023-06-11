@@ -41,6 +41,7 @@ python3 -m pynsy.main --config configs/shape_analysis.json --module demos.mnist
 
 ```bash
 # Instrument a module that does flag-parsing.
+# Use `--` to separate Pynsy flags from instrumented module flags.
 python3 -m pynsy.main --config configs/lint.json --module demos.flag_parsing \
   -- --string "Hello world" x y 10
 ```
@@ -76,7 +77,7 @@ Each record has the following keys:
 
 One can write a custom dynamic analysis for Python instructions by creating a
 Pynsy analysis class of the form
-[analyses/shape_logger.py](pynsy/analyses/shape_logger.py).
+[analyses/shape_analysis.py](pynsy/analyses/shape_analysis.py).
 
 An analysis should define the following functions:
 

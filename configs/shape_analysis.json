@@ -1,6 +1,6 @@
 {
   "analyzers": [
-    "pynsy.analyses.shape_logger"
+    "pynsy.analyses.shape_analysis"
   ],
   "instrumentation_rules": {
     "include": ["demos."],
