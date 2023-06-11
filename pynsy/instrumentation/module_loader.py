@@ -22,12 +22,13 @@ _Path = Union[bytes, str]
 def get_longest_filter(path, rules):
   action = None
   depth = -1
-  for filter, filter_action in rules:
-    if path.startswith(filter):
-      filter_depth = filter.count(".")
-      if filter_depth > depth:
-        depth = filter_depth
-        action = filter_action
+  for filter_action, filters in rules.items():
+    for filter in filters:
+      if path.startswith(filter):
+        filter_depth = filter.count(".")
+        if filter_depth > depth:
+          depth = filter_depth
+          action = filter_action
   return action, depth
 
 
