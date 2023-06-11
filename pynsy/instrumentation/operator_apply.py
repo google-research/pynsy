@@ -253,7 +253,7 @@ class OperatorApply:
           )
       elif opname[opcode] == "CALL_FUNCTION_KW":
         if not is_post:
-          keys = stack[-1]
+          keys = object_id_stack[-1]
           self.function_call_stack.append(stack[0])
           self.function_name_stack.append(
               stack[0].__name__

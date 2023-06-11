@@ -14,12 +14,11 @@
 
 import pandas as pd
 from pynsy.analyses import util
+from pynsy.instrumentation import logging
+
+log = logging.logger(__name__)
 
 record_list = []
-
-
-def is_blank(val):
-  return val != val
 
 
 def abstraction(obj):
@@ -54,5 +53,5 @@ def process_event(record):
 def process_termination():
   df = pd.DataFrame(record_list)
   log_file = util.get_output_path("key_in_list_analysis", "trace.csv")
-  print("Saving raw data as a pandas DataFrame in " + log_file)
+  log(f"Saving raw data to {log_file}.")
   pd.DataFrame.to_csv(df, log_file)

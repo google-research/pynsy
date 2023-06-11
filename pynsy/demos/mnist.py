@@ -40,7 +40,8 @@ from jax.scipy.special import logsumexp
 import numpy.random as npr
 
 import pynsy.analyses.shape_analysis as shaper
-import demos.datasets as datasets
+# import demos.datasets as datasets
+from pynsy.demos import datasets
 
 
 def init_random_params(scale, layer_sizes, rng=npr.RandomState(0)):

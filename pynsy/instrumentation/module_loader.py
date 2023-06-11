@@ -24,8 +24,11 @@ from typing import Optional
 from typing import Sequence
 from typing import Union
 
-from pynsy.instrumentation import operator_apply
 from pynsy.instrumentation import instrument_nested
+from pynsy.instrumentation import logging
+from pynsy.instrumentation import operator_apply
+
+log = logging.logger(__name__)
 
 handle = operator_apply.handle
 OperatorApply = operator_apply.OperatorApply
@@ -88,7 +91,7 @@ class PynsyLoader(Loader):
     ):
       module_code = self.existing_loader.get_code(self.name)  # type: ignore
       if module_code:
-        print("[Python Analysis] Instrumenting module " + self.name)
+        log(f"Instrumenting module {self.name}.")
         id_to_bytecode, code_to_id = extract_all_codeobjects(module_code)
         id_to_bytecode_new_codeobjects = instrument_extracted(
             id_to_bytecode, code_to_id
@@ -178,7 +181,7 @@ def import_method_from_module(s):
 
 def instrument_imports(config: str) -> HookManager:
   event_handler = OperatorApply()
-  print(f"Loading config at {config}")
+  log(f"Loading config at {config}.")
   with open(config, "r") as f:
     handle.config = json.load(f)
   handle.instrumentation_rules = handle.config.get("instrumentation_rules", [])

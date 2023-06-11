@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+import sys
+import termcolor
 
-OUTPUT_ROOT_DIR = "/tmp/pynsy"
 
-
-def get_output_path(analysis_name: str, filename: str) -> str:
-  output_dir = os.path.join(OUTPUT_ROOT_DIR, analysis_name)
-  os.makedirs(output_dir, exist_ok=True)
-  return os.path.join(output_dir, filename)
+def logger(analysis_name: str):
+  def log(message: str) -> str:
+    sys.stdout.write(termcolor.colored(analysis_name, "blue", attrs=["bold"]))
+    sys.stdout.write(termcolor.colored(f': {message}\n', attrs=["bold"]))
+  return log

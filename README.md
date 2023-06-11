@@ -36,13 +36,13 @@ python3 -m pynsy.main --config configs/lint.json --module pynsy.demos.key_in_lis
 
 ```bash
 # Run shape analysis on JAX MNIST.
-python3 -m pynsy.main --config configs/shape_analysis.json --module demos.mnist
+python3 -m pynsy.main --config configs/shape_analysis.json --module pynsy.demos.mnist
 ```
 
 ```bash
 # Instrument a module that does flag-parsing.
 # Use `--` to separate Pynsy flags from instrumented module flags.
-python3 -m pynsy.main --config configs/lint.json --module demos.flag_parsing \
+python3 -m pynsy.main --config configs/lint.json --module pynsy.demos.flag_parsing \
   -- --string "Hello world" x y 10
 ```
 

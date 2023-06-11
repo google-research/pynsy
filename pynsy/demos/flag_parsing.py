@@ -12,12 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+import json
+import sys
 
-OUTPUT_ROOT_DIR = "/tmp/pynsy"
+from absl import app
+from absl import flags
+import termcolor
+
+_STRING_FLAG = flags.DEFINE_string('string', 'Hello world', 'String flag.')
+_INT_FLAG = flags.DEFINE_integer('int', 10, 'Int flag.')
 
 
-def get_output_path(analysis_name: str, filename: str) -> str:
-  output_dir = os.path.join(OUTPUT_ROOT_DIR, analysis_name)
-  os.makedirs(output_dir, exist_ok=True)
-  return os.path.join(output_dir, filename)
+def print_prompt(message: str):
+  print(termcolor.colored(message, attrs=['bold']))
+
+
+def main(argv):
+  print_prompt('sys.argv')
+  print(sys.argv)
+  print_prompt('absl.flags: argv')
+  print(argv)
+  print_prompt('absl.flags.FLAGS.flag_values_dict()')
+  print(json.dumps(flags.FLAGS.flag_values_dict(), indent=2))
+
+app.run(main)

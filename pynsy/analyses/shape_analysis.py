@@ -19,22 +19,23 @@ import numpy as np
 import pandas as pd
 
 from pynsy.analyses import util
+from pynsy.instrumentation import logging
 from pynsy.instrumentation import util as instrumentation_util
 
 ObjectId = instrumentation_util.ObjectId
+log = logging.logger(__name__)
 
 record_list = []
 
-curr_dt = datetime.now()
-
-timestamp = int(round(curr_dt.timestamp()))
+now = datetime.now()
+timestamp = int(round(now.timestamp()))
 keys = ["module_name", "method_id", "instruction_id", "lineno", "type"]
 
-nick_names = {
+nicknames = {
     "UNARY_POSITIVE": "+",
     "UNARY_NEGATIVE": "-",
     "UNARY_NOT": "not",
-    "UNARY_INVERT": "invert",
+    "UNARY_INVERT": "~",
     "GET_ITER": "iter",
     "GET_YIELD_FROM_ITER": "yield",
     "BINARY_POWER": "**",
@@ -83,49 +84,15 @@ nick_names = {
 
 object_name_space = dict()
 name_space = dict()
-last_oid = -1
-locationToDimension = dict()
-objectIdToDimension = dict()
+last_object_id = -1
+location_to_dimension = dict()
+object_id_to_dimension = dict()
 state = dict()
 states = []
 
 
 def has_result(row):
   return row["result_and_args"][0]["abs"] is not None
-
-
-def is_blank(val):
-  return val != val
-
-
-def result_and_args(row):
-  if row["type"] == "LOAD_ATTR":
-    row["result_and_args"] = [row["result"], row["base"], row["attr_name"]]
-  elif row["type"] == "STORE_ATTR":
-    row["result_and_args"] = [
-        row["result"],
-        row["base"],
-        row["attr_name"],
-        row["operand"],
-    ]
-  elif row["type"] == "BINARY_SUBSCR":
-    row["result_and_args"] = [row["result"], row["base"], row["index"]]
-  elif row["type"] == "STORE_SUBSCR":
-    row["result_and_args"] = [
-        row["result"],
-        row["base"],
-        row["index"],
-        row["operand"],
-    ]
-  elif not is_blank(row["operand"]):
-    row["result_and_args"] = [row["result"], row["operand"]]
-  elif not is_blank(row["operand1"]) or not is_blank(row["operand2"]):
-    row["result_and_args"] = [row["result"], row["operand1"], row["operand2"]]
-  elif not is_blank(row["args_list"]):
-    row["result_and_args"] = [row["result"]] + row["args_list"]
-  else:
-    row["result_and_args"] = [row["result"]]
-  return row
 
 
 class DimensionSymbol:
@@ -140,9 +107,9 @@ class DimensionSymbol:
 
 
 def trim_locations():
-  global locationToDimension
-  locationToDimension = {
-      k: v for k, v in locationToDimension.items() if is_shape(v[0])
+  global location_to_dimension
+  location_to_dimension = {
+      k: v for k, v in location_to_dimension.items() if is_shape(v[0])
   }
 
 
@@ -171,34 +138,34 @@ def get_constraints(row):
     name = str(row["function_name"]) + "()"
   key = tuple([row[x] for x in keys] + [name])
   value = row["result_and_args"][0]
-  type = None
-  if key not in locationToDimension:
+  object_type = None
+  if key not in location_to_dimension:
     if is_shape_value(value):
-      oid = value["id"]
+      object_id = value["id"]
       shape = value["abs"]
-      if oid in objectIdToDimension:
-        old_shape = objectIdToDimension[oid][1]
+      if object_id in object_id_to_dimension:
+        old_shape = object_id_to_dimension[object_id][1]
         if old_shape != shape:
           logging.warning(
               "Inference algorithm's assumption that a tensor's shape is"
               " invariant is invalid."
           )
           raise Exception
-        type = objectIdToDimension[oid][0]
+        object_type = object_id_to_dimension[object_id][0]
       else:
         shape_type = []
         for _ in shape:
           shape_type.append(DimensionSymbol())
-        objectIdToDimension[oid] = (shape_type, shape)
-        type = shape_type
+        object_id_to_dimension[object_id] = (shape_type, shape)
+        object_type = shape_type
     else:
-      type = None
-    locationToDimension[key] = (type, [value])
+      object_type = None
+    location_to_dimension[key] = (object_type, [value])
   else:
-    locationToDimension[key][1].append(value)
-  symbolic_dimensions = locationToDimension[key][0]
+    location_to_dimension[key][1].append(value)
+  symbolic_dimensions = location_to_dimension[key][0]
   if is_shape(symbolic_dimensions):
-    value = locationToDimension[key][1][-1]
+    value = location_to_dimension[key][1][-1]
     state_update = dict(zip(symbolic_dimensions, value["abs"]))
     if not (state_update.items() <= state.items()):
       state.update(state_update)
@@ -259,7 +226,7 @@ def get_name(type, name):
   if isinstance(name, str) and len(name) > 0:
     return name
   else:
-    return nick_names[type]
+    return nicknames[type]
 
 
 def abstraction(obj):
@@ -271,35 +238,40 @@ def abstraction(obj):
 
 
 def process_event(record):
-  global last_oid
+  global last_object_id
   result_and_args = record.get("result_and_args", None)
   if result_and_args:
     result_id = result_and_args[0]["id"]
     if isinstance(result_id, ObjectId):
-      last_oid = result_id
+      last_object_id = result_id
     record_list.append(record)
 
 
 def process_names():
-  for oid in object_name_space.keys():
-    for d, n in zip(objectIdToDimension[oid][0], object_name_space[oid]):
+  for object_id in object_name_space:
+    for d, n in zip(
+        object_id_to_dimension[object_id][0], object_name_space[object_id]
+    ):
       name_space[d.val] = n
 
 
 def process_termination():
+  if not record_list:
+    log("No instructions were instrumented.")
+    return
   df = pd.DataFrame(record_list)
   log_file = util.get_output_path("shape_analysis", "trace.csv")
-  print("Saving raw data as a pandas DataFrame in " + log_file)
+  log(f"Saving raw data to {log_file}.")
   pd.DataFrame.to_csv(df, log_file)
   indices = df.apply(has_result, axis=1)
   df = df[indices]
-  df = df.apply(get_constraints, axis=1)
+  _ = df.apply(get_constraints, axis=1)
   trim_locations()
-  print("locationToDimension")
-  for k, v in locationToDimension.items():
+  log("location_to_dimension")
+  for k, v in location_to_dimension.items():
     print(f"{k} : {v}")
-  print("objectIdToDimension")
-  for k, v in objectIdToDimension.items():
+  log("object_id_to_dimension")
+  for k, v in object_id_to_dimension.items():
     print(f"{k} : {v}")
 
   n_symbols = DimensionSymbol.counter
@@ -309,6 +281,9 @@ def process_termination():
     for i, v in state.items():
       row[i.val] = v
     data.append(row)
+  if not data:
+    log("No data was instrumented.")
+    return
   np_data = np.array(data)
   matrix_file = util.get_output_path("shape_analysis", "matrix.csv")
   pd.DataFrame(np_data).to_csv(matrix_file)
@@ -321,19 +296,19 @@ def process_termination():
         assert len(v[0]) == 1
         name_space[v[1][0]] = name_space[i]
   solution = str_solution(solution)
-  print("Printing solution ...")
+  log("Printing solution...")
   for d, e in enumerate(solution):
     print(f"d{d} -> {e}")
 
   line_annotations = dict()
-  for k, v in locationToDimension.items():
+  for k, v in location_to_dimension.items():
     key = k[0], k[3]
     if key not in line_annotations:
       line_annotations[key] = []
     line_annotations[key].append((k[4], k[5], v[0], v[1][0]["abs"]))
   annotations_file = util.get_output_path("shape_analysis", "annotations.csv")
   with open(annotations_file, "w") as out:
-    print(f"Saving annotations to {annotations_file}.\n")
+    log(f"Saving annotations to {log_file}.")
     for line, annot in line_annotations.items():
       s = [
           (get_name(t, n), tuple([f"{solution[d.val]}" for d in a]), c)
@@ -345,4 +320,5 @@ def process_termination():
 
 
 def annotate_shape(obj, shape):
-  object_name_space[last_oid] = shape
+  if isinstance(last_object_id, ObjectId):
+    object_name_space[last_object_id] = shape

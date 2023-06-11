@@ -21,9 +21,9 @@ dependencies = [
     "config",
     "jax",
     "jaxlib",
-    "numpy",
-    "mypy",
+    "numpy>=1.22",
     "pandas",
+    "termcolor",
     "typing_extensions",
 ]
 
