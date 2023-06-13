@@ -132,9 +132,9 @@ def is_shape(s):
 
 def get_constraints(row):
   name = ""
-  if not is_blank(row["name"]):
+  if row["name"]:
     name = row["name"]
-  elif not is_blank(row["function_name"]):
+  elif row["function_name"]:
     name = str(row["function_name"]) + "()"
   key = tuple([row[x] for x in keys] + [name])
   value = row["result_and_args"][0]
@@ -308,7 +308,7 @@ def process_termination():
     line_annotations[key].append((k[4], k[5], v[0], v[1][0]["abs"]))
   annotations_file = util.get_output_path("shape_analysis", "annotations.csv")
   with open(annotations_file, "w") as out:
-    log(f"Saving annotations to {log_file}.")
+    log(f"Saving annotations to {annotations_file}.")
     for line, annot in line_annotations.items():
       s = [
           (get_name(t, n), tuple([f"{solution[d.val]}" for d in a]), c)
