@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+import pathlib
 
 OUTPUT_ROOT_DIR = "/tmp/pynsy"
 
 
 def get_output_path(analysis_name: str, filename: str) -> str:
-  output_dir = os.path.join(OUTPUT_ROOT_DIR, analysis_name)
-  os.makedirs(output_dir, exist_ok=True)
-  return os.path.join(output_dir, filename)
+  output_path = pathlib.Path(OUTPUT_ROOT_DIR, analysis_name, filename)
+  output_path.parent.mkdir(exist_ok=True)
+  return output_path

@@ -12,13 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections
+from collections.abc import Sequence
+import dataclasses
 from datetime import datetime
+import io
 import itertools
 import logging
+from typing import Any
+
 import numpy as np
 import pandas as pd
+import termcolor
 
 from pynsy.analyses import util
+from pynsy.instrumentation import module_loader
 from pynsy.instrumentation import logging
 from pynsy.instrumentation import util as instrumentation_util
 
@@ -31,6 +39,43 @@ now = datetime.now()
 timestamp = int(round(now.timestamp()))
 keys = ["module_name", "method_id", "instruction_id", "lineno", "type"]
 
+
+@dataclasses.dataclass
+class Annotation:
+  """A Python object shape annotation.
+
+  Args:
+    opcode: The opcode of the Python bytecode instruction that produced the
+      object.
+    name: The name of the object, or the empty string if unknown.
+    type: The type of the object.
+    symbolic_shape: The symbolic shape of the object.
+    concrete_shape: The concrete shape of the object.
+  """
+
+  opcode: str
+  name: str
+  type: str | None
+  symbolic_shape: Any
+  concrete_shape: Any
+
+  def to_string(
+      self, indent: int = 0, *, short: bool = True, color: bool = True
+  ) -> str:
+    out = io.StringIO()
+    out.write(" " * indent)
+    name = get_name(self.opcode, self.name)
+    if short:
+      msg = f"{name}: {self.symbolic_shape} {self.concrete_shape}"
+    else:
+      msg = f"{name}: {self.type} {self.symbolic_shape} {self.concrete_shape}"
+    out.write(msg)
+    s = out.getvalue()
+    if color:
+      s = termcolor.colored(s, color="magenta", attrs=["bold"])
+    return s
+
+
 nicknames = {
     "UNARY_POSITIVE": "+",
     "UNARY_NEGATIVE": "-",
@@ -40,46 +85,46 @@ nicknames = {
     "GET_YIELD_FROM_ITER": "yield",
     "BINARY_POWER": "**",
     "BINARY_MULTIPLY": "*",
-    "BINARY_MATRIX_MULTIPLY": "matmul",
+    "BINARY_MATRIX_MULTIPLY": "@",
     "BINARY_FLOOR_DIVIDE": "//",
     "BINARY_TRUE_DIVIDE": "/",
     "BINARY_MODULO": "%",
     "BINARY_ADD": "+",
     "BINARY_SUBTRACT": "-",
-    "BINARY_SUBSCR": "[]",
+    "BINARY_SUBSCR": "__getitem__",
     "BINARY_LSHIFT": "<<",
     "BINARY_RSHIFT": ">>",
     "BINARY_AND": "&",
     "BINARY_XOR": "^",
     "BINARY_OR": "|",
     "COMPARE_OP": "cmp",
-    "INPLACE_POWER": "**",
-    "INPLACE_MULTIPLY": "*",
-    "INPLACE_MATRIX_MULTIPLY": "matmul",
-    "INPLACE_FLOOR_DIVIDE": "//",
-    "INPLACE_TRUE_DIVIDE": "/",
-    "INPLACE_MODULO": "%",
-    "INPLACE_ADD": "+",
-    "INPLACE_SUBTRACT": "-",
-    "INPLACE_LSHIFT": "<<",
-    "INPLACE_RSHIFT": ">>",
-    "INPLACE_AND": "&",
-    "INPLACE_XOR": "^",
-    "INPLACE_OR": "|",
-    "MAKE_FUNCTION": "def",
-    "LOAD_NAME": "load",
-    "LOAD_FAST": "load",
-    "LOAD_DEREF": "load",
-    "LOAD_CLOSURE": "load",
-    "LOAD_ATTR": "load",
-    "LOAD_CONST": "load",
-    "LOAD_GLOBAL": "load",
-    "CALL_FUNCTION": "call",
-    "CALL_FUNCTION_KW": "call",
-    "CALL_METHOD": "call",
-    "RETURN_FUNCTION": "call",
-    "RETURN_FUNCTION_KW": "call",
-    "RETURN_METHOD": "call",
+    "INPLACE_POWER": "**=",
+    "INPLACE_MULTIPLY": "*=",
+    "INPLACE_MATRIX_MULTIPLY": "@=",
+    "INPLACE_FLOOR_DIVIDE": "//=",
+    "INPLACE_TRUE_DIVIDE": "/=",
+    "INPLACE_MODULO": "%=",
+    "INPLACE_ADD": "+=",
+    "INPLACE_SUBTRACT": "-=",
+    "INPLACE_LSHIFT": "<<=",
+    "INPLACE_RSHIFT": ">>=",
+    "INPLACE_AND": "&=",
+    "INPLACE_XOR": "^=",
+    "INPLACE_OR": "|=",
+    # "MAKE_FUNCTION": "<def>",
+    # "LOAD_NAME": "<load>",
+    # "LOAD_FAST": "<load>",
+    # "LOAD_DEREF": "<load>",
+    # "LOAD_CLOSURE": "<load>",
+    # "LOAD_ATTR": "<load>",
+    # "LOAD_CONST": "<load>",
+    # "LOAD_GLOBAL": "<load>",
+    # "CALL_FUNCTION": "<call>",
+    # "CALL_FUNCTION_KW": "<call>",
+    # "CALL_METHOD": "<call>",
+    # "RETURN_FUNCTION": "<call>",
+    # "RETURN_FUNCTION_KW": "<call>",
+    # "RETURN_METHOD": "<call>",
 }
 
 object_name_space = dict()
@@ -132,9 +177,10 @@ def is_shape(s):
 
 def get_constraints(row):
   name = ""
-  if row["name"]:
+  missing_values = row.notna()
+  if missing_values.get("name"):
     name = row["name"]
-  elif row["function_name"]:
+  elif missing_values.get("function_name"):
     name = str(row["function_name"]) + "()"
   key = tuple([row[x] for x in keys] + [name])
   value = row["result_and_args"][0]
@@ -222,11 +268,15 @@ def find_solution(np_data, n_symbols):
   return solution
 
 
-def get_name(type, name):
-  if isinstance(name, str) and len(name) > 0:
+def get_name(opcode, name):
+  if isinstance(name, str) and name:
     return name
   else:
-    return nicknames[type]
+    return nicknames.get(opcode, f"<{opcode}>")
+
+
+def count_leading_spaces(s: str) -> int:
+  return len(s) - len(s.lstrip(" "))
 
 
 def abstraction(obj):
@@ -241,7 +291,8 @@ def process_event(record):
   global last_object_id
   result_and_args = record.get("result_and_args", None)
   if result_and_args:
-    result_id = result_and_args[0]["id"]
+    result = result_and_args[0]
+    result_id = result["id"]
     if isinstance(result_id, ObjectId):
       last_object_id = result_id
     record_list.append(record)
@@ -256,9 +307,11 @@ def process_names():
 
 
 def process_termination():
+  verbose = True
   if not record_list:
     log("No instructions were instrumented.")
     return
+
   df = pd.DataFrame(record_list)
   log_file = util.get_output_path("shape_analysis", "trace.csv")
   log(f"Saving raw data to {log_file}.")
@@ -267,12 +320,13 @@ def process_termination():
   df = df[indices]
   _ = df.apply(get_constraints, axis=1)
   trim_locations()
-  log("location_to_dimension")
-  for k, v in location_to_dimension.items():
-    print(f"{k} : {v}")
-  log("object_id_to_dimension")
-  for k, v in object_id_to_dimension.items():
-    print(f"{k} : {v}")
+  if verbose:
+    log("location_to_dimension")
+    for k, v in location_to_dimension.items():
+      print(f"{k} : {v}")
+    log("object_id_to_dimension")
+    for k, v in object_id_to_dimension.items():
+      print(f"{k} : {v}")
 
   n_symbols = DimensionSymbol.counter
   data = []
@@ -296,27 +350,106 @@ def process_termination():
         assert len(v[0]) == 1
         name_space[v[1][0]] = name_space[i]
   solution = str_solution(solution)
-  log("Printing solution...")
-  for d, e in enumerate(solution):
-    print(f"d{d} -> {e}")
+  if verbose:
+    log("Printing solution...")
+    for d, e in enumerate(solution):
+      print(f"d{d} -> {e}")
 
-  line_annotations = dict()
+  annotations_by_line_by_module = collections.defaultdict(
+      lambda: collections.defaultdict(list)
+  )
   for k, v in location_to_dimension.items():
-    key = k[0], k[3]
-    if key not in line_annotations:
-      line_annotations[key] = []
-    line_annotations[key].append((k[4], k[5], v[0], v[1][0]["abs"]))
-  annotations_file = util.get_output_path("shape_analysis", "annotations.csv")
+    module_name, _, _, line_number, opcode, name = k
+    line_number = int(line_number)
+
+    symbolic_shape, concrete_values = v
+    symbolic_shape = [solution[d.val] for d in symbolic_shape]
+    concrete_shape = concrete_values[0]
+
+    annotation = Annotation(
+        opcode=opcode,
+        name=name,
+        type=concrete_shape["type"],
+        symbolic_shape=symbolic_shape,
+        concrete_shape=concrete_shape["abs"],
+    )
+    annotations_by_line_by_module[module_name][line_number].append(annotation)
+
+  modules_by_name = {}
+  module_text_by_name = {}
+  for module_name, annotations_by_line in annotations_by_line_by_module.items():
+    module = module_loader.import_method_from_module(module_name)
+    modules_by_name[module_name] = module
+
+    module_path = module.__file__
+    with open(module_path, "r") as f:
+      module_text = f.read()
+    module_lines = module_text.split("\n")
+    module_text_by_name[module_name] = module_text
+    sorted_line_numbers = sorted(annotations_by_line)
+
+    def transform_line_number(line_number):
+      # Explanation:
+      # - The line numbers in the trace are one-indexed, so subtracting one is
+      #   necessary to get true line number for indexing into the Python list of
+      #   file content lines.
+      return max(0, line_number - 1)
+
+    annotated_lines = []
+    last_line_number = 0
+
+    for line_number in sorted_line_numbers:
+      if last_line_number == 0:
+        start_index = 0
+      else:
+        start_index = transform_line_number(last_line_number)
+      end_index = transform_line_number(line_number)
+      annotated_lines.extend(module_lines[start_index:end_index])
+      last_line_number = line_number
+
+      annotated_line = module_lines[end_index]
+      indent = count_leading_spaces(annotated_line)
+      annotations = annotations_by_line[line_number]
+      for annotation in annotations:
+        s = annotation.to_string(indent=indent)
+        annotated_lines.append(s)
+
+    end_index = transform_line_number(last_line_number)
+    annotated_lines.extend(module_lines[end_index:])
+
+    if verbose:
+      log(f"Shape annotations for: {module_name}")
+      print(termcolor.colored("=" * 80, attrs=["bold"]))
+      for line in annotated_lines:
+        print(line)
+      print(termcolor.colored("=" * 80, attrs=["bold"]))
+    annotated_source = "\n".join(annotated_lines)
+    annotations_file = util.get_output_path(
+        "shape_analysis", f"annotations/{module_name}.py"
+    )
+    log(f"Saving annotated source file: {annotations_file}.")
+    with open(annotations_file, "w") as out:
+      out.write("# Auto-generated file with array shape annotations.\n")
+      out.write(f"# Original file: {module_path}\n\n")
+      out.write(annotated_source)
+
+  annotations_file = util.get_output_path("shape_analysis", "annotations.txt")
   with open(annotations_file, "w") as out:
     log(f"Saving annotations to {annotations_file}.")
-    for line, annot in line_annotations.items():
-      s = [
-          (get_name(t, n), tuple([f"{solution[d.val]}" for d in a]), c)
-          for t, n, a, c in annot
-      ]
-      out.write(f"{line[0]}@{line[1]}:\n")
-      for name, shape, concrete in s:
-        out.write(f"    {name}: {shape} {concrete}\n")
+    for (
+        module_name,
+        annotations_by_line,
+    ) in annotations_by_line_by_module.items():
+      for line_number, annotations in annotations_by_line.items():
+        s = []
+        for annotation in annotations:
+          name = get_name(annotation.opcode, annotation.name)
+          shape = tuple(annotation.symbolic_shape)
+          concrete = annotation.concrete_shape
+          s.append((name, shape, concrete))
+        out.write(f"{module_name}@{line_number}:\n")
+        for name, shape, concrete in s:
+          out.write(f"    {name}: {shape} {concrete}\n")
 
 
 def annotate_shape(obj, shape):

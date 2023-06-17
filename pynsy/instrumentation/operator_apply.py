@@ -35,9 +35,12 @@ HeapObjectTracker = heap_object_tracking.HeapObjectTracker
 ObjectId = util.ObjectId
 get_instrumented_program_frame = util.get_instrumented_program_frame
 
+
 class Handle:
   """Config object, used as a namespace for attributes."""
+
   pass
+
 
 handle = Handle()
 
@@ -264,7 +267,7 @@ class OperatorApply:
           self.call_process_event_on_record(
               loc,
               {
-                  "function_name": function_name,
+                  "name": function_name,
                   "result_and_args": object_id_stack[1:-1] + [
                       keys,
                   ],

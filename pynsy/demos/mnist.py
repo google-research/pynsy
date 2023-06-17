@@ -12,20 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Copyright 2018 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 """A basic MNIST example using Numpy and JAX.
 
 The primary aim here is simplicity and minimal dependencies.
@@ -40,7 +26,6 @@ from jax.scipy.special import logsumexp
 import numpy.random as npr
 
 import pynsy.analyses.shape_analysis as shaper
-# import demos.datasets as datasets
 from pynsy.demos import datasets
 
 
@@ -54,7 +39,6 @@ def init_random_params(scale, layer_sizes, rng=npr.RandomState(0)):
 def predict(params, inputs):
   activations = inputs
   shaper.annotate_shape(inputs, ("batch", "size"))
-  # Shapes: inputs.shape: batch, size
   for w, b in params[:-1]:
     outputs = jnp.dot(activations, w) + b
     activations = jnp.tanh(outputs)
@@ -119,9 +103,8 @@ def init_fun():
 
 
 init_fun()
-# init_fun()
-#   train_acc = accuracy(params, (train_images, train_labels))
-#   test_acc = accuracy(params, (test_images, test_labels))
-#   print("Epoch {} in {:0.2f} sec".format(epoch, epoch_time))
-#   print("Training set accuracy {}".format(train_acc))
-#   print("Test set accuracy {}".format(test_acc))
+# train_acc = accuracy(params, (train_images, train_labels))
+# test_acc = accuracy(params, (test_images, test_labels))
+# print("Epoch {} in {:0.2f} sec".format(epoch, epoch_time))
+# print("Training set accuracy {}".format(train_acc))
+# print("Test set accuracy {}".format(test_acc))
