@@ -19,5 +19,5 @@ OUTPUT_ROOT_DIR = "/tmp/pynsy"
 
 def get_output_path(analysis_name: str, filename: str) -> str:
   output_path = pathlib.Path(OUTPUT_ROOT_DIR, analysis_name, filename)
-  output_path.parent.mkdir(exist_ok=True)
+  output_path.parent.mkdir(parents=True, exist_ok=True)
   return output_path
