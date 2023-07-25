@@ -124,19 +124,11 @@ class PynsyPathFinder(MetaPathFinder):
   current_path: Optional[Sequence[_Path]]
   patched_modules: List[str]
 
-  def __init__(self, event_handler: OperatorApply) -> None:
-    self.existing_importers = sys.meta_path.copy()
+  def __init__(self, existing_importers, event_handler: OperatorApply) -> None:
+    self.existing_importers = existing_importers
     self.patched_modules = []
     self.event_handler = event_handler
 
-  def install(self) -> None:
-    sys.meta_path.insert(0, self)
-
-  def uninstall(self) -> None:
-    sys.meta_path.remove(self)
-    for module in self.patched_modules:
-      del sys.modules[module]
-    self.patched_modules = []
 
   def find_spec(
       self,
@@ -160,17 +152,21 @@ class PynsyPathFinder(MetaPathFinder):
 class HookManager:
 
   def __init__(self, event_handler: OperatorApply) -> None:
+    self.existing_importers = sys.meta_path.copy()
     self.path_finder = None
     self.event_handler = event_handler
     pass
 
   def __enter__(self) -> "HookManager":
-    self.path_finder = PynsyPathFinder(self.event_handler)
-    self.path_finder.install()
+    self.path_finder = PynsyPathFinder(self.existing_importers, self.event_handler)
+    sys.meta_path.insert(0, self.path_finder)
     return self
 
   def __exit__(self, *args: Any) -> None:
-    self.path_finder.uninstall()
+    sys.meta_path.remove(self.path_finder)
+    for module in self.path_finder.patched_modules:
+      del sys.modules[module]
+    self.path_finder.patched_modules = []
     for m in handle.custom_analyzer:
       m.process_termination()
 
