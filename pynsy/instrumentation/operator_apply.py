@@ -74,29 +74,27 @@ class OperatorApply:
     self.pre_op_stack = []
     self.cell_to_frame = {}
     self.exec_len_key = "exec_len"
-    self.novalue = {"id": -1, "type": None, "abs": None}
+    self.novalue = {"id": -1, "abs": None}
     super().__init__()
 
   def get_wrapped_repr(self, obj):
-    return {"id": 0, "type": type(obj), "abs": obj}
+    return {"id": 0, "abs": obj}
 
   def get_repr(self, obj):
     ignore_repr_list = [m.abstraction(obj) for m in handle.custom_analyzer]
     return [
         {
             "id": ObjectId(self.heap_object_tracking.get_object_id(obj)),
-            "type": type(obj),
             "abs": repr,
         }
         if not ignore
-        else {"id": 0, "type": type(obj), "abs": repr}
+        else {"id": 0, "abs": repr}
         for ignore, repr in ignore_repr_list
     ]
 
   def get_special_object_repr(self, obj):
     return {
         "id": ObjectId(self.heap_object_tracking.get_object_id(obj)),
-        "type": type(obj),
         "abs": None,
     }
 

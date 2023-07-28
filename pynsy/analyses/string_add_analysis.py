@@ -27,14 +27,14 @@ def is_blank(val):
 
 def abstraction(obj):
   if isinstance(obj, str):
-    return False, obj
+    return False, "str"
   else:
     return True, None
 
 
 def process_event(record):
   if record["type"] == "BINARY_ADD":
-    if str(record["result_and_args"][0]["type"]) == "<class 'str'>":
+    if str(record["result_and_args"][0]["abs"]) == "str":
       print(
           f"Warning: at line {record['lineno']} in {record['module_name']}, the"
           " 'string addition' is slow.  Use \"\".join(str1, str2)"

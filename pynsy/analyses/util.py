@@ -14,7 +14,7 @@
 
 import pathlib
 
-OUTPUT_ROOT_DIR = "/tmp/pynsy"
+OUTPUT_ROOT_DIR = "outdir"
 
 
 def get_output_path(analysis_name: str, filename: str) -> str:
