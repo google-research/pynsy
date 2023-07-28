@@ -55,7 +55,6 @@ class Annotation:
 
   opcode: str
   name: str
-  type: str | None
   symbolic_shape: Any
   concrete_shape: Any
 
@@ -65,10 +64,7 @@ class Annotation:
     out = io.StringIO()
     out.write(" " * indent)
     name = get_name(self.opcode, self.name)
-    if short:
-      msg = f"{name}: {self.symbolic_shape} {self.concrete_shape}"
-    else:
-      msg = f"{name}: {self.type} {self.symbolic_shape} {self.concrete_shape}"
+    msg = f"{name}: {self.symbolic_shape} {self.concrete_shape}"
     out.write(msg)
     s = out.getvalue()
     if color:
@@ -369,7 +365,7 @@ def process_termination():
     annotation = Annotation(
         opcode=opcode,
         name=name,
-        type=concrete_shape["type"],
+#        type=concrete_shape["type"],
         symbolic_shape=symbolic_shape,
         concrete_shape=concrete_shape["abs"],
     )
