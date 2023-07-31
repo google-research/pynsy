@@ -64,7 +64,7 @@ class Annotation:
     out = io.StringIO()
     out.write(" " * indent)
     name = get_name(self.opcode, self.name)
-    msg = f"{name}: {self.symbolic_shape} {self.concrete_shape}"
+    msg = f"# {name}: {self.symbolic_shape} {self.concrete_shape}"
     out.write(msg)
     s = out.getvalue()
     if color:
@@ -239,8 +239,8 @@ def str_solution(solution):
   return ret
 
 
-def find_solution(np_data, n_symbols):
-  non_zero_indices = (np_data != 0).argmax(axis=0)
+def find_solution(np_data, n_symbols, change_mask):
+#  non_zero_indices = (np_data != 0).argmax(axis=0)
   max_variables = 4
   solution = [i for i in range(n_symbols)]
   coeffs = [1, 2, 3]
@@ -256,9 +256,9 @@ def find_solution(np_data, n_symbols):
           b = np.zeros((n_symbols,), dtype=int)
           for c, var in itertools.zip_longest(cs, vars, fillvalue=-1):
             b[var] = c
-          fr = max([non_zero_indices[var] for var in vars])
+#          fr = max([non_zero_indices[var] for var in vars])
           r = np_data.dot(b)
-          if not r[fr:].any():
+          if not np.dot(r, change_mask[:, vars[-1]]).any():
             solution[vars[-1]] = (cs, vars[:-1])
             break
   return solution
@@ -326,20 +326,28 @@ def process_termination():
 
   n_symbols = DimensionSymbol.counter
   data = []
+  data2 = []
+  row = [-1] * n_symbols
+  data2.append(row)
   for state in states:
     row = [0] * n_symbols
     for i, v in state.items():
       row[i.val] = v
     data.append(row)
+    data2.append(row)
   if not data:
     log("No data was instrumented.")
     return
   np_data = np.array(data)
+  data2.pop()
+  np_data2 = np.array(data2)
+  change_mask = np_data - np_data2
+  change_mask[change_mask != 0] = 1
   matrix_file = util.get_output_path("shape_analysis", "matrix.csv")
   pd.DataFrame(np_data).to_csv(matrix_file)
 
   process_names()
-  solution = find_solution(np_data, n_symbols)
+  solution = find_solution(np_data, n_symbols, change_mask)
   for i, v in enumerate(solution):
     if i in name_space:
       if isinstance(v, tuple):
