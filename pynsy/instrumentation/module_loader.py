@@ -172,12 +172,14 @@ class HookManager:
 
   def __exit__(self, *args: Any) -> None:
     sys.meta_path.remove(self.path_finder)
+    # Run analyzer exit functions.
+    for m in handle.custom_analyzer:
+      m.process_termination()
+    # Delete and clear patched modules.
     for module in self.path_finder.patched_modules:
       if module in sys.modules:
         del sys.modules[module]
-    self.path_finder.patched_modules = []
-    for m in handle.custom_analyzer:
-      m.process_termination()
+    self.path_finder.patched_modules.clear()
 
 
 def import_method_from_module(s):
