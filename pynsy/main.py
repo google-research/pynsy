@@ -33,7 +33,15 @@ def main(argv):
   config = _CONFIG_FLAG.value
   module_name = _MODULE_FLAG.value
   # Rewrite `argv` to be absl-parsed flags.
+  this_module_name = sys.argv[0]
   sys.argv = argv
+  # Remove parsed flags to avoid flag name conflicts with the
+  # module-to-instrument.
+  flag_module_dict = flags.FLAGS.flags_by_module_dict()
+  fv = flags.FlagValues()
+  for flag in flag_module_dict[this_module_name]:
+    fv[flag.name] = flag
+  flags.FLAGS.remove_flag_values(fv)
   with instrument_imports(config):
     # Execute module with name `__main__` (top-level code environment).
     # This exactly replicates the behavior of directly executing the module.
