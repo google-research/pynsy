@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
 from importlib.abc import Loader
 from importlib.abc import MetaPathFinder
 from importlib.machinery import ModuleSpec
@@ -87,6 +88,12 @@ class PynsyLoader(Loader):
   def module_repr(self, module: ModuleType) -> str:
     return self.existing_loader.module_repr(module)
 
+  def get_code(self, module: ModuleType) -> str:
+    return self.existing_loader.get_code(module)
+
+  def get_resource_reader(self, package):
+    return self.existing_loader.get_resource_reader(package)
+
   def exec_module(self, module: ModuleType) -> None:
     if hasattr(self.existing_loader, "get_code") and need_instrumentation(
         self.name
@@ -131,7 +138,6 @@ class PynsyPathFinder(MetaPathFinder):
     self.patched_modules = []
     self.event_handler = event_handler
 
-
   def find_spec(
       self,
       fullname: str,
@@ -167,14 +173,15 @@ class HookManager:
   def __exit__(self, *args: Any) -> None:
     sys.meta_path.remove(self.path_finder)
     for module in self.path_finder.patched_modules:
-      del sys.modules[module]
+      if module in sys.modules:
+        del sys.modules[module]
     self.path_finder.patched_modules = []
     for m in handle.custom_analyzer:
       m.process_termination()
 
 
 def import_method_from_module(s):
-  return __import__(s, globals(), locals(), [None], 0)
+  return importlib.import_module(s)
 
 
 def instrument_imports(config: str) -> HookManager:

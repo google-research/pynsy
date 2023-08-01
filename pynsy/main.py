@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
+import importlib.util
 import sys
 
 from absl import app
@@ -29,11 +31,17 @@ _MODULE_FLAG = flags.DEFINE_string(
 
 def main(argv):
   config = _CONFIG_FLAG.value
-  module = _MODULE_FLAG.value
-  # Strip `argv[0]`, which is the program name.
-  sys.argv = argv[1:]
+  module_name = _MODULE_FLAG.value
+  # Rewrite `argv` to be absl-parsed flags.
+  sys.argv = argv
   with instrument_imports(config):
-    import_method_from_module(module)
+    # Execute module with name `__main__` (top-level code environment).
+    # This exactly replicates the behavior of directly executing the module.
+    spec = importlib.util.find_spec(module_name)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    module.__name__ = '__main__'
+    spec.loader.exec_module(module)
 
 
 if __name__ == '__main__':
