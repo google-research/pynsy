@@ -44,6 +44,7 @@ dev = [
     "pytest-xdist",
     "pylint>=2.6.0",
     "pyink",
+
     # Haiku
     "bsuite@git+https://github.com/deepmind/bsuite.git",
     # "optax@git+https://github.com/deepmind/optax.git",
@@ -54,6 +55,9 @@ dev = [
     "packaging>=20.9",
     "tensorflow-datasets>=4.2.0",
     "tensorflow>=2.4.0",
+
+    # Flax
+    "flax[testing]",
 ]
 
 [tool.pyink]

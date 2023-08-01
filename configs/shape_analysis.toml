@@ -4,10 +4,11 @@ analyzers = [
 
 [instrumentation_rules]
 include = [
-  "pynsy.demos.",
-  "optax.",
-  "haiku.",
+  "pynsy.demos",
 ]
 exclude = [
-  "pynsy.",
+  "jax",
+  "optax",
+  "pynsy",
+  "pynsy.demos.haiku.examples.transformer.dataset",
 ]
