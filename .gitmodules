@@ -1,0 +1,3 @@
+[submodule "pynsy/demos/haiku"]
+	path = pynsy/demos/haiku
+	url = https://github.com/dan-zheng/dm-haiku

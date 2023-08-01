@@ -1,0 +1,15 @@
+{
+  "analyzers": [
+    "pynsy.analyses.shape_analysis"
+  ],
+  "instrumentation_rules": {
+    "include": [
+      "pynsy.demos.",
+      "pynsy.demos.haiku.examples."
+    ],
+    "exclude": [
+      "jax.",
+      "pynsy.demos.haiku.examples.transformer.dataset"
+    ]
+  }
+}
