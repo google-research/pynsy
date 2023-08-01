@@ -3,7 +3,11 @@
     "pynsy.analyses.shape_analysis"
   ],
   "instrumentation_rules": {
-    "include": ["pynsy.demos."],
+    "include": [
+      "pynsy.demos.",
+      "optax.",
+      "haiku."
+    ],
     "exclude": ["pynsy."]
   }
 }

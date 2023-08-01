@@ -24,6 +24,8 @@ from typing import Optional
 from typing import Sequence
 from typing import Union
 
+import toml
+
 from pynsy.instrumentation import instrument_nested
 from pynsy.instrumentation import logging
 from pynsy.instrumentation import operator_apply
@@ -179,7 +181,12 @@ def instrument_imports(config: str) -> HookManager:
   event_handler = OperatorApply()
   log(f"Loading config at {config}.")
   with open(config, "r") as f:
-    handle.config = json.load(f)
+    if config.endswith('.toml'):
+      handle.config = toml.load(f)
+    elif config.endswith('.json'):
+      handle.config = json.load(f)
+    else:
+      raise ValueError(f'Unknown configuration file format: {config}')
   handle.instrumentation_rules = handle.config.get("instrumentation_rules", [])
   handle.custom_analyzer = [
       import_method_from_module(m) for m in handle.config.get("analyzers", [])
