@@ -14,10 +14,10 @@
 
 import pathlib
 
-OUTPUT_ROOT_DIR = "outdir"
+OUTPUT_ROOT_DIR = pathlib.Path("outdir")
 
 
 def get_output_path(analysis_name: str, filename: str) -> str:
-  output_path = pathlib.Path(OUTPUT_ROOT_DIR, analysis_name, filename)
+  output_path = OUTPUT_ROOT_DIR / analysis_name / filename
   output_path.parent.mkdir(parents=True, exist_ok=True)
   return output_path

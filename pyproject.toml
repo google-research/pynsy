@@ -45,6 +45,9 @@ dev = [
     "pylint>=2.6.0",
     "pyink",
 
+    # Evaluation
+    "fire",
+
     # Haiku
     "bsuite@git+https://github.com/deepmind/bsuite.git",
     # "optax@git+https://github.com/deepmind/optax.git",
