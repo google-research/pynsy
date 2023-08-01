@@ -204,7 +204,12 @@ def get_constraints(row):
       object_type = None
     location_to_dimension[key] = (object_type, [value])
   else:
-    location_to_dimension[key][1].append(value)
+    if is_shape_value(value):
+      location_to_dimension[key][1].append(value)
+      object_id = value["id"]
+      shape = value["abs"]
+      shape_type = location_to_dimension[key][0]
+      object_id_to_dimension[object_id] = (shape_type, shape)
   symbolic_dimensions = location_to_dimension[key][0]
   if is_shape(symbolic_dimensions):
     value = location_to_dimension[key][1][-1]
@@ -277,7 +282,10 @@ def count_leading_spaces(s: str) -> int:
 
 def abstraction(obj):
   if hasattr(obj, "shape"):
-    return False, obj.shape
+    try:
+      return False, obj.shape
+    except:
+      return True, None
   elif isinstance(obj, int) or isinstance(obj, float):
     return False, obj
   return True, None
