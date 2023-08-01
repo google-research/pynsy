@@ -189,8 +189,8 @@ def get_constraints(row):
         old_shape = object_id_to_dimension[object_id][1]
         if old_shape != shape:
           logging.warning(
-              "Inference algorithm's assumption that a tensor's shape is"
-              " invariant is invalid."
+              "Inference algorithm's assumption that a tensor's shape is "
+              "invariant is invalid."
           )
           raise Exception
         object_type = object_id_to_dimension[object_id][0]
@@ -457,5 +457,8 @@ def process_termination():
 
 
 def annotate_shape(obj, shape):
+  # This works because LOAD is executed right before calls to this function.
   if isinstance(last_object_id, ObjectId):
     object_name_space[last_object_id] = shape
+  else:
+    log(f"Failed shape annotation for {obj}: {shape}", color="red")

@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 from types import CodeType
 from typing import cast
 
+from absl import logging
 from bytecode import Bytecode
 from bytecode import Instr
 from bytecode import Label
@@ -250,6 +250,9 @@ def get_args_num(n_operands: int, input: Instr) -> int:
     return n_operands
 
 
+warned_operation_types = set()
+
+
 def instrument_bytecode(byte_code: Bytecode, method_id: int = 0) -> Bytecode:
   instrumented_byte_code = clone_bytecode_empty_body(byte_code)
 
@@ -276,8 +279,9 @@ def instrument_bytecode(byte_code: Bytecode, method_id: int = 0) -> Bytecode:
         and instr.name not in pre_instrumented_ops
         and instr.name not in post_instrumented_ops
     ):
-      pass
-      logging.warning(f"IGNORING OPERATION {instr.name}")
+      if instr.name not in warned_operation_types:
+        logging.warning("Ignoring operation: %s", instr.name)
+        warned_operation_types.add(instr.name)
 
     instrumented_byte_code.append(instr)
 
