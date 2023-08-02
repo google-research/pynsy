@@ -57,6 +57,7 @@ class PythonCommand:
 
 
 EVAL_COMMANDS = [
+    # Haiku examples
     PythonCommand(
         name='haiku/rnn',
         raw_command='pynsy.demos.haiku.examples.rnn.train',
@@ -68,10 +69,11 @@ EVAL_COMMANDS = [
     PythonCommand(
         name='haiku/transformer',
         raw_command=(
-            'pynsy.demos.haiku.examples.transformer.train'
-            ' --dataset_path=/tmp/shakespeare.txt'
+            'pynsy.demos.haiku.examples.transformer.train '
+            '--dataset_path=/tmp/shakespeare.txt'
         ),
     ),
+    # Flax examples
     PythonCommand(
         name='flax/mnist',
         raw_command=(
@@ -80,14 +82,73 @@ EVAL_COMMANDS = [
             '--config.num_epochs=1'
         ),
     ),
+    # PyTorch examples
+    PythonCommand(
+        name='pytorch/gcn',
+        raw_command=(
+            'pynsy.demos.pytorch_examples.gcn.main --dry-run --epochs 1'
+        ),
+    ),
+    PythonCommand(
+        name='pytorch/mnist_forward_forward',
+        raw_command=(
+            'pynsy.demos.pytorch_examples.mnist_forward_forward.main --epochs 1'
+        ),
+    ),
+    PythonCommand(
+        name='pytorch/regression',
+        raw_command='pynsy.demos.pytorch_examples.regression.main',
+    ),
+    # NOTE: Commented because prohibitively slow without --num_epochs flag.
+    # PythonCommand(
+    #     name='pytorch/rl/reinforce',
+    #     raw_command=(
+    #         'pynsy.demos.pytorch_examples.reinforcement_learning.reinforce'
+    #     ),
+    # ),
+    # PythonCommand(
+    #     name='pytorch/rl/actor_critic',
+    #     raw_command=(
+    #         'pynsy.demos.pytorch_examples.reinforcement_learning.actor_critic'
+    #     ),
+    # ),
+    PythonCommand(
+        name='pytorch/siamese_network',
+        raw_command=(
+            'pynsy.demos.pytorch_examples.siamese_network.main --dry-run '
+            '--epochs 1'
+        ),
+    ),
+    PythonCommand(
+        name='pytorch/vae',
+        raw_command='pynsy.demos.pytorch_examples.vae.main --epochs 1',
+    ),
+    PythonCommand(
+        name='pytorch/vision_transformer',
+        raw_command=(
+            'pynsy.demos.pytorch_examples.vision_transformer.main --dry-run '
+            '--epochs 1'
+        ),
+    ),
 ]
 
 
 def run_evaluation():
   rows = []
-  for command in tqdm.tqdm(EVAL_COMMANDS, 'Running evaluation'):
-    baseline_time = command.run_python_command()
-    pynsy_time = command.run_pynsy_command()
+  pbar = tqdm.tqdm(EVAL_COMMANDS)
+  for command in pbar:
+    pbar.set_description(f'Evaluating {command.name} baseline')
+    try:
+      baseline_time = command.run_python_command()
+    except:
+      baseline_time = 'Error'
+
+    pbar.set_description(f'Evaluating {command.name} with Pynsy')
+    try:
+      pynsy_time = command.run_pynsy_command()
+    except:
+      pynsy_time = 'Error'
+
     row = dict(
         name=command.name,
         baseline_time=baseline_time,
@@ -96,9 +157,14 @@ def run_evaluation():
     print(row)
     rows.append(row)
   df = pd.DataFrame.from_records(rows)
+  df = df.sort_values(by=['name'])
   print(df)
   df.to_csv(util.OUTPUT_ROOT_DIR / 'evaluation_performance.csv')
-  df.to_latex(util.OUTPUT_ROOT_DIR / 'evaluation_performance.tex')
+  df.to_latex(
+      util.OUTPUT_ROOT_DIR / 'evaluation_performance.tex',
+      index=False,
+      escape=True,
+  )
 
 
 if __name__ == '__main__':

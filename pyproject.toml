@@ -61,6 +61,12 @@ dev = [
 
     # Flax
     "flax[testing]",
+
+    # PyTorch
+    "torch",
+    "torchvision",
+    "gym",
+    "pygame",
 ]
 
 [tool.pyink]
