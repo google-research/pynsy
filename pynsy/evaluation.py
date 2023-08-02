@@ -30,7 +30,7 @@ def run_command(args: Sequence[str]) -> int:
   return end - start
 
 
-class PythonCommand:
+class EvaluationExample:
 
   def __init__(self, name: str, raw_command: str):
     self.name = name
@@ -56,17 +56,17 @@ class PythonCommand:
     return run_command(args)
 
 
-EVAL_COMMANDS = [
+EXAMPLES = [
     # Haiku examples
-    PythonCommand(
+    EvaluationExample(
         name='haiku/rnn',
         raw_command='pynsy.demos.haiku.examples.rnn.train',
     ),
-    PythonCommand(
+    EvaluationExample(
         name='haiku/impala_rl',
         raw_command='pynsy.demos.haiku.examples.impala.run_catch',
     ),
-    PythonCommand(
+    EvaluationExample(
         name='haiku/transformer',
         raw_command=(
             'pynsy.demos.haiku.examples.transformer.train '
@@ -74,7 +74,7 @@ EVAL_COMMANDS = [
         ),
     ),
     # Flax examples
-    PythonCommand(
+    EvaluationExample(
         name='flax/mnist',
         raw_command=(
             'pynsy.demos.flax.examples.mnist.main --workdir=/tmp/mnist '
@@ -83,47 +83,47 @@ EVAL_COMMANDS = [
         ),
     ),
     # PyTorch examples
-    PythonCommand(
+    EvaluationExample(
         name='pytorch/gcn',
         raw_command=(
             'pynsy.demos.pytorch_examples.gcn.main --dry-run --epochs 1'
         ),
     ),
-    PythonCommand(
+    EvaluationExample(
         name='pytorch/mnist_forward_forward',
         raw_command=(
             'pynsy.demos.pytorch_examples.mnist_forward_forward.main --epochs 1'
         ),
     ),
-    PythonCommand(
+    EvaluationExample(
         name='pytorch/regression',
         raw_command='pynsy.demos.pytorch_examples.regression.main',
     ),
     # NOTE: Commented because prohibitively slow without --num_epochs flag.
-    # PythonCommand(
+    # EvaluationExample(
     #     name='pytorch/rl/reinforce',
     #     raw_command=(
     #         'pynsy.demos.pytorch_examples.reinforcement_learning.reinforce'
     #     ),
     # ),
-    # PythonCommand(
+    # EvaluationExample(
     #     name='pytorch/rl/actor_critic',
     #     raw_command=(
     #         'pynsy.demos.pytorch_examples.reinforcement_learning.actor_critic'
     #     ),
     # ),
-    PythonCommand(
+    EvaluationExample(
         name='pytorch/siamese_network',
         raw_command=(
             'pynsy.demos.pytorch_examples.siamese_network.main --dry-run '
             '--epochs 1'
         ),
     ),
-    PythonCommand(
+    EvaluationExample(
         name='pytorch/vae',
         raw_command='pynsy.demos.pytorch_examples.vae.main --epochs 1',
     ),
-    PythonCommand(
+    EvaluationExample(
         name='pytorch/vision_transformer',
         raw_command=(
             'pynsy.demos.pytorch_examples.vision_transformer.main --dry-run '
@@ -132,34 +132,54 @@ EVAL_COMMANDS = [
     ),
 ]
 
+EVAL_COMMANDS_BY_NAME = {example.name: example for example in EXAMPLES}
 
-def run_evaluation():
+
+def evaluate(example: str | EvaluationExample, pbar: tqdm.tqdm | None = None):
+  """Evaluates the given example program."""
+  if isinstance(example, str):
+    example = EVAL_COMMANDS_BY_NAME[example]
+
+  msg = f'Evaluating {example.name} baseline'
+  if pbar:
+    pbar.set_description(msg)
+  else:
+    print(msg)
+  try:
+    baseline_time = example.run_python_command()
+  except:
+    baseline_time = 'Error'
+
+  msg = f'Evaluating {example.name} with Pynsy'
+  if pbar:
+    pbar.set_description(msg)
+  else:
+    print(msg)
+  try:
+    pynsy_time = example.run_pynsy_command()
+  except:
+    pynsy_time = 'Error'
+
+  row = dict(
+      name=example.name,
+      baseline_time=baseline_time,
+      pynsy_time=pynsy_time,
+  )
+  return row
+
+
+def evaluate_all():
+  """Evaluates all example programs."""
   rows = []
-  pbar = tqdm.tqdm(EVAL_COMMANDS)
-  for command in pbar:
-    pbar.set_description(f'Evaluating {command.name} baseline')
-    try:
-      baseline_time = command.run_python_command()
-    except:
-      baseline_time = 'Error'
-
-    pbar.set_description(f'Evaluating {command.name} with Pynsy')
-    try:
-      pynsy_time = command.run_pynsy_command()
-    except:
-      pynsy_time = 'Error'
-
-    row = dict(
-        name=command.name,
-        baseline_time=baseline_time,
-        pynsy_time=pynsy_time,
-    )
+  pbar = tqdm.tqdm(EXAMPLES)
+  for example in pbar:
+    row = evaluate(example, pbar=pbar)
     print(row)
     rows.append(row)
   df = pd.DataFrame.from_records(rows)
   df = df.sort_values(by=['name'])
-  print(df)
-  df.to_csv(util.OUTPUT_ROOT_DIR / 'evaluation_performance.csv')
+  print(df.to_string(index=False))
+  df.to_csv(util.OUTPUT_ROOT_DIR / 'evaluation_performance.csv', index=False)
   df.to_latex(
       util.OUTPUT_ROOT_DIR / 'evaluation_performance.tex',
       index=False,
