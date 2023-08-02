@@ -4,3 +4,6 @@
 [submodule "pynsy/demos/flax"]
 	path = pynsy/demos/flax
 	url = git@github.com:dan-zheng/flax.git
+[submodule "pynsy/demos/pytorch_examples"]
+	path = pynsy/demos/pytorch_examples
+	url = git@github.com:dan-zheng/pytorch-examples.git
