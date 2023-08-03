@@ -368,14 +368,14 @@ def process_termination():
 
     symbolic_shape, concrete_values = v
     symbolic_shape = [solution[d.val] for d in symbolic_shape]
-    concrete_shape = concrete_values[0]
+    concrete_shapes = concrete_values
 
     annotation = Annotation(
         opcode=opcode,
         name=name,
 #        type=concrete_shape["type"],
         symbolic_shape=symbolic_shape,
-        concrete_shape=concrete_shape["abs"],
+        concrete_shape=[concrete_shape["abs"] for concrete_shape in concrete_shapes],
     )
     annotations_by_line_by_module[module_name][line_number].append(annotation)
 
