@@ -5,9 +5,11 @@
   "instrumentation_rules": {
     "include": [
       "pynsy.demos.",
-      "optax.",
-      "haiku."
+      "pynsy.demos.haiku.examples."
     ],
-    "exclude": ["pynsy."]
+    "exclude": [
+      "jax.",
+      "pynsy.demos.haiku.examples.transformer.dataset"
+    ]
   }
 }

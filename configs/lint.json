@@ -4,7 +4,7 @@
     "pynsy.analyses.string_add_analysis"
   ],
   "instrumentation_rules": {
-    "include": ["pynsy.demos."],
-    "exclude": ["pynsy."]
+    "include": ["pynsy.demos"],
+    "exclude": ["pynsy"]
   }
 }

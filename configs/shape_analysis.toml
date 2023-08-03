@@ -1,0 +1,14 @@
+analyzers = [
+  "pynsy.analyses.shape_analysis"
+]
+
+[instrumentation_rules]
+include = [
+  "pynsy.demos",
+]
+exclude = [
+  "jax",
+  "optax",
+  "pynsy",
+  "pynsy.demos.haiku.examples.transformer.dataset",
+]

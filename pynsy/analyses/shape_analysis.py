@@ -189,8 +189,8 @@ def get_constraints(row):
         old_shape = object_id_to_dimension[object_id][1]
         if old_shape != shape:
           logging.warning(
-              "Inference algorithm's assumption that a tensor's shape is"
-              " invariant is invalid."
+              "Inference algorithm's assumption that a tensor's shape is "
+              "invariant is invalid."
           )
           raise Exception
         object_type = object_id_to_dimension[object_id][0]
@@ -204,7 +204,12 @@ def get_constraints(row):
       object_type = None
     location_to_dimension[key] = (object_type, [value])
   else:
-    location_to_dimension[key][1].append(value)
+    if is_shape_value(value):
+      location_to_dimension[key][1].append(value)
+      object_id = value["id"]
+      shape = value["abs"]
+      shape_type = location_to_dimension[key][0]
+      object_id_to_dimension[object_id] = (shape_type, shape)
   symbolic_dimensions = location_to_dimension[key][0]
   if is_shape(symbolic_dimensions):
     value = location_to_dimension[key][1][-1]
@@ -277,7 +282,10 @@ def count_leading_spaces(s: str) -> int:
 
 def abstraction(obj):
   if hasattr(obj, "shape"):
-    return False, obj.shape
+    try:
+      return False, obj.shape
+    except:
+      return True, None
   elif isinstance(obj, int) or isinstance(obj, float):
     return False, obj
   return True, None
@@ -457,5 +465,8 @@ def process_termination():
 
 
 def annotate_shape(obj, shape):
+  # This works because LOAD is executed right before calls to this function.
   if isinstance(last_object_id, ObjectId):
     object_name_space[last_object_id] = shape
+  else:
+    log(f"Failed shape annotation for {obj}: {shape}", color="red")

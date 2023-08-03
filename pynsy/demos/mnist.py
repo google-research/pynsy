@@ -85,7 +85,7 @@ def data_stream():
 batches = data_stream()
 
 
-def init_fun():
+def main():
   def update(params, batch):
     grads = grad(loss)(params, batch)
     return [
@@ -102,9 +102,10 @@ def init_fun():
     epoch_time = time.time() - start_time
 
 
-init_fun()
-# train_acc = accuracy(params, (train_images, train_labels))
-# test_acc = accuracy(params, (test_images, test_labels))
-# print("Epoch {} in {:0.2f} sec".format(epoch, epoch_time))
-# print("Training set accuracy {}".format(train_acc))
-# print("Test set accuracy {}".format(test_acc))
+if __name__ == '__main__':
+  main()
+  # train_acc = accuracy(params, (train_images, train_labels))
+  # test_acc = accuracy(params, (test_images, test_labels))
+  # print("Epoch {} in {:0.2f} sec".format(epoch, epoch_time))
+  # print("Training set accuracy {}".format(train_acc))
+  # print("Test set accuracy {}".format(test_acc))

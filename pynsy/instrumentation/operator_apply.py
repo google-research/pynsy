@@ -124,7 +124,16 @@ class OperatorApply:
         return self.heap_object_tracking.get_object_id(cur_frame)
       elif isinstance(instr.arg, FreeVar):
         free_vars = fn_object.__code__.co_freevars
-        var_index = free_vars.index(instr.arg.name)
+        try:
+          var_index = free_vars.index(instr.arg.name)
+        except Exception as e:
+          # raise ValueError(
+          #     f'free_vars: {free_vars}\n'
+          #     f'instr: {instr}\n'
+          #     f'instr.arg.name: {instr.arg.name}'
+          # ) from e
+          # TODO: Check if this fallback logic is acceptable.
+          return self.heap_object_tracking.get_object_id(fn_object)
         cell = fn_object.__closure__[var_index]
         return self.cell_to_frame[
             self.heap_object_tracking.get_object_id(cell)
@@ -387,7 +396,7 @@ class OperatorApply:
         self.call_process_event_on_record(
             loc,
             {
-                "operand": [
+                "result_and_args": [
                     self.novalue,
                     rep,
                     self.get_wrapped_repr(instr.arg),

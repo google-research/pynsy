@@ -26,3 +26,14 @@ poetry.lock
 
 # Pynsy artifacts
 outdir
+
+# pytorch/examples
+best-weights.pt
+cora
+data/
+dataset/
+fake_samples_epoch_000.png
+netD_epoch_0.pth
+netG_epoch_0.pth
+real_samples.png
+results/

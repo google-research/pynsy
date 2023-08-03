@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
 from importlib.abc import Loader
 from importlib.abc import MetaPathFinder
 from importlib.machinery import ModuleSpec
@@ -23,6 +24,8 @@ from typing import List
 from typing import Optional
 from typing import Sequence
 from typing import Union
+
+import toml
 
 from pynsy.instrumentation import instrument_nested
 from pynsy.instrumentation import logging
@@ -85,6 +88,12 @@ class PynsyLoader(Loader):
   def module_repr(self, module: ModuleType) -> str:
     return self.existing_loader.module_repr(module)
 
+  def get_code(self, module: ModuleType) -> str:
+    return self.existing_loader.get_code(module)
+
+  def get_resource_reader(self, package):
+    return self.existing_loader.get_resource_reader(package)
+
   def exec_module(self, module: ModuleType) -> None:
     if hasattr(self.existing_loader, "get_code") and need_instrumentation(
         self.name
@@ -129,7 +138,6 @@ class PynsyPathFinder(MetaPathFinder):
     self.patched_modules = []
     self.event_handler = event_handler
 
-
   def find_spec(
       self,
       fullname: str,
@@ -164,22 +172,30 @@ class HookManager:
 
   def __exit__(self, *args: Any) -> None:
     sys.meta_path.remove(self.path_finder)
-    for module in self.path_finder.patched_modules:
-      del sys.modules[module]
-    self.path_finder.patched_modules = []
+    # Run analyzer exit functions.
     for m in handle.custom_analyzer:
       m.process_termination()
+    # Delete and clear patched modules.
+    for module in self.path_finder.patched_modules:
+      if module in sys.modules:
+        del sys.modules[module]
+    self.path_finder.patched_modules.clear()
 
 
 def import_method_from_module(s):
-  return __import__(s, globals(), locals(), [None], 0)
+  return importlib.import_module(s)
 
 
 def instrument_imports(config: str) -> HookManager:
   event_handler = OperatorApply()
   log(f"Loading config at {config}.")
   with open(config, "r") as f:
-    handle.config = json.load(f)
+    if config.endswith('.toml'):
+      handle.config = toml.load(f)
+    elif config.endswith('.json'):
+      handle.config = json.load(f)
+    else:
+      raise ValueError(f'Unknown configuration file format: {config}')
   handle.instrumentation_rules = handle.config.get("instrumentation_rules", [])
   handle.custom_analyzer = [
       import_method_from_module(m) for m in handle.config.get("analyzers", [])
