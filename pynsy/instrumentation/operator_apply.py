@@ -127,25 +127,12 @@ class OperatorApply:
         try:
           var_index = free_vars.index(instr.arg.name)
         except Exception as e:
-          # raise ValueError(
-          #     f'free_vars: {free_vars}\n'
-          #     f'instr: {instr}\n'
-          #     f'instr.arg.name: {instr.arg.name}'
-          # ) from e
           # TODO: Check if this fallback logic is acceptable.
           return self.heap_object_tracking.get_object_id(fn_object)
         cell = fn_object.__closure__[var_index]
         return self.cell_to_frame[
             self.heap_object_tracking.get_object_id(cell)
-        ]  #   if isinstance(arg, CellVar):
-      #   emit_kv("cell", arg.name)
-      # elif isinstance(arg, FreeVar):
-      #   emit_kv("free", arg.name)
-      # cell_vars = fn_object.__code__.co_cellvars
-      # free_vars = fn_object.__code__.co_freevars
-      # var_index = free_vars.index(instr.name)
-      # cell = fn_object.__closure__[var_index]
-      # return self.heap_object_tracking.get_object_id(cell)
+        ]
 
   def call_process_event_on_record(
       self, loc, rest: Dict = None, opcode=-1, type=None
@@ -218,7 +205,6 @@ class OperatorApply:
           )
         else:
           self.function_call_stack.pop()
-          #          object_id_stack = self.convert_stack_to_heap_id(stack)
           function_name = self.function_name_stack.pop()
           self.call_process_event_on_record(
               loc,

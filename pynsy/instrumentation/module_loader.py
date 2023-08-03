@@ -70,11 +70,12 @@ class PynsyLoader(Loader):
     self.name = name
     self.existing_loader = existing_loader
     self.finder = finder
-    # extra attributes that are dynamically checked for by module import system
-    if hasattr(existing_loader, "get_filename"):
-      setattr(self, "get_filename", lambda fullname: existing_loader.get_filename(fullname))  # type: ignore
-    if hasattr(existing_loader, "is_package"):
-      setattr(self, "is_package", lambda fullname: existing_loader.is_package(fullname))  # type: ignore
+
+  def get_filename(self, fullname: str) -> str:
+    return self.existing_loader.get_filename(fullname)
+
+  def is_package(self, fullname: str) -> bool:
+    return self.existing_loader.is_package(fullname)
 
   def set_event_handler(self, handler: Any) -> None:
     self.event_handler = handler
