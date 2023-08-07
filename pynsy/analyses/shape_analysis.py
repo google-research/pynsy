@@ -209,29 +209,45 @@ def is_shape(s):
 #       ret[i] = f"{s}"
 #   return ret
 
+class TemplateInstance:
+  def __init__(self, template, vars):
+    self.template = template
+    self.vars = vars
+
+  def __str__(self):
+    return f"{self.template.name}({self.vars})"
+
+class Template:
+  def __init__(self, name, n_vars, predicate):
+    self.name = name
+    self.n_vars = n_vars
+    self.predicate = predicate
+
+  def get_instance(self, vars):
+    return TemplateInstance(self, vars)
+
 templates = [
-    (lambda state, vars: state.get(vars[0], 0) == state.get(vars[1]), 2, lambda vars: ("equality", vars[1])),
-    (lambda state, vars: state.get(vars[0], 0) == state.get(vars[1], 0)*state.get(vars[2], 0), 3, lambda vars: ("product", vars[1], vars[2])),
+    Template("equality", 2, lambda state, vars: state.get(vars[0], 0) == state.get(vars[1])),
+    Template("product", 3, lambda state, vars: state.get(vars[0], 0) == state.get(vars[1], 0) * state.get(vars[2], 0)),
 ]
 
 def find_solution(states, location_id_to_type, n_symbols):
   solution = [i for i in range(n_symbols)]
   for location_id, state_list in states.items():
     exclude = location_id_to_type[location_id]
-    for f, n_vars, g in templates:
+    for template in templates:
       for var in exclude[0]:
-        iter1 = itertools.dropwhile(lambda x: x == var or not isinstance(solution[x], int), range(n_symbols))
-        iter2 = itertools.combinations(iter1, n_vars)
-        for vars in iter2:
-          vars = list(vars)
-          vars.insert(0, var)
+        vars_list = [i for i in range(n_symbols) if i != var and isinstance(solution[i], int)]
+        vars_iter = itertools.combinations(vars_list, template.n_vars - 1)
+        for vars in vars_iter:
+          vars = [var] + list(vars)
           holds = True
           for state in state_list:
-            if not f(state, vars):
+            if not template.predicate(state, vars):
               holds = False
               break
           if holds:
-            solution[var] = g(vars)
+            solution[var] = template.get_instance(vars[1:])
             break
   return solution
 
