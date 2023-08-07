@@ -123,35 +123,48 @@ nicknames = {
     # "RETURN_METHOD": "<call>",
 }
 
-object_name_space = dict()
-name_space = dict()
-last_object_id = -1
-location_to_dimension = dict()
-object_id_to_dimension = dict()
-state = dict()
-states = []
 
 
-def has_result(row):
-  return row["result_and_args"][0]["abs"] is not None
+# def has_result(row):
+#   return row["result_and_args"][0]["abs"] is not None
+#
 
-
-class DimensionSymbol:
-  counter = 0
+class UniqueIdForKey:
 
   def __init__(self):
-    self.val = DimensionSymbol.counter
-    DimensionSymbol.counter += 1
+    self.counter = 0
+    self.key_to_id = dict()
+    self.id_to_key = list()
 
-  def __repr__(self):
-    return "d" + str(self.val)
+  def get_id(self, key):
+    if key in self.key_to_id:
+      return self.key_to_id[key]
+    else:
+      self.key_to_id[key] = self.counter
+      self.id_to_key.append(key)
+      self.counter += 1
+      return self.counter - 1
+
+  def get_key(self, id):
+    return self.id_to_key[id] if id < len(self.id_to_key) else None
 
 
-def trim_locations():
-  global location_to_dimension
-  location_to_dimension = {
-      k: v for k, v in location_to_dimension.items() if is_shape(v[0])
-  }
+class UniqueId:
+  def __init__(self, count):
+    self.counter = count
+
+  def get_fresh_id(self):
+    self.counter += 1
+    return self.counter - 1
+
+  def num_ids(self):
+    return self.counter
+
+# def trim_locations():
+#   global location_to_dimension
+#   location_to_dimension = {
+#       k: v for k, v in location_to_dimension.items() if is_shape(v[0])
+#   }
 
 
 def flatten(l):
@@ -171,100 +184,54 @@ def is_shape(s):
   return isinstance(s, list) or isinstance(s, tuple)
 
 
-def get_constraints(row):
-  name = ""
-  missing_values = row.notna()
-  if missing_values.get("name"):
-    name = row["name"]
-  elif missing_values.get("function_name"):
-    name = str(row["function_name"]) + "()"
-  key = tuple([row[x] for x in keys] + [name])
-  value = row["result_and_args"][0]
-  object_type = None
-  if key not in location_to_dimension:
-    if is_shape_value(value):
-      object_id = value["id"]
-      shape = value["abs"]
-      if object_id in object_id_to_dimension:
-        old_shape = object_id_to_dimension[object_id][1]
-        if old_shape != shape:
-          logging.warning(
-              "Inference algorithm's assumption that a tensor's shape is "
-              "invariant is invalid."
-          )
-          raise Exception
-        object_type = object_id_to_dimension[object_id][0]
-      else:
-        shape_type = []
-        for _ in shape:
-          shape_type.append(DimensionSymbol())
-        object_id_to_dimension[object_id] = (shape_type, shape)
-        object_type = shape_type
-    else:
-      object_type = None
-    location_to_dimension[key] = (object_type, [value])
-  else:
-    if is_shape_value(value):
-      location_to_dimension[key][1].append(value)
-      object_id = value["id"]
-      shape = value["abs"]
-      shape_type = location_to_dimension[key][0]
-      object_id_to_dimension[object_id] = (shape_type, shape)
-  symbolic_dimensions = location_to_dimension[key][0]
-  if is_shape(symbolic_dimensions):
-    value = location_to_dimension[key][1][-1]
-    state_update = dict(zip(symbolic_dimensions, value["abs"]))
-    if not (state_update.items() <= state.items()):
-      state.update(state_update)
-      states.append(dict(state))
+
+# def format_dimension(i):
+#   if i in name_space:
+#     return name_space[i]
+#   else:
+#     return f"d{i}"
 
 
-def format_dimension(i):
-  if i in name_space:
-    return name_space[i]
-  else:
-    return f"d{i}"
+# def str_solution(solution):
+#   ret = [""] * len(solution)
+#   for i, v in enumerate(solution):
+#     if isinstance(v, int):
+#       ret[i] = format_dimension(i)
+#     else:
+#       s = ""
+#       for c, var in zip(v[0], v[1]):
+#         if c == 1:
+#           s += format_dimension(var) + " +"
+#         else:
+#           s += f"{c}" + format_dimension(var) + " +"
+#       if len(s) > 0:
+#         s = s[0:-2]
+#       ret[i] = f"{s}"
+#   return ret
 
+templates = [
+    (lambda state, vars: state.get(vars[0], 0) == state.get(vars[1]), 2, lambda vars: ("equality", vars[1])),
+    (lambda state, vars: state.get(vars[0], 0) == state.get(vars[1], 0)*state.get(vars[2], 0), 3, lambda vars: ("product", vars[1], vars[2])),
+]
 
-def str_solution(solution):
-  ret = [""] * len(solution)
-  for i, v in enumerate(solution):
-    if isinstance(v, int):
-      ret[i] = format_dimension(i)
-    else:
-      s = ""
-      for c, var in zip(v[0], v[1]):
-        if c == 1:
-          s += format_dimension(var) + " +"
-        else:
-          s += f"{c}" + format_dimension(var) + " +"
-      if len(s) > 0:
-        s = s[0:-2]
-      ret[i] = f"{s}"
-  return ret
-
-
-def find_solution(np_data, n_symbols, change_mask):
-#  non_zero_indices = (np_data != 0).argmax(axis=0)
-  max_variables = 4
+def find_solution(states, location_id_to_type, n_symbols):
   solution = [i for i in range(n_symbols)]
-  coeffs = [1, 2, 3]
-  for n_vars in range(2, max_variables + 1):
-    domain = range(0, n_symbols)
-    pick_n_vars = itertools.combinations(domain, n_vars)
-    for vars in pick_n_vars:
-      if all(map(lambda x: isinstance(solution[x], int), vars)):
-        coeff_iterator = itertools.combinations_with_replacement(
-            coeffs, n_vars - 1
-        )
-        for cs in coeff_iterator:
-          b = np.zeros((n_symbols,), dtype=int)
-          for c, var in itertools.zip_longest(cs, vars, fillvalue=-1):
-            b[var] = c
-#          fr = max([non_zero_indices[var] for var in vars])
-          r = np_data.dot(b)
-          if not np.dot(r, change_mask[:, vars[-1]]).any():
-            solution[vars[-1]] = (cs, vars[:-1])
+  for location_id, state_list in states.items():
+    exclude = location_id_to_type[location_id]
+    for f, n_vars, g in templates:
+      for var in exclude[0]:
+        iter1 = itertools.dropwhile(lambda x: x == var or not isinstance(solution[x], int), range(n_symbols))
+        iter2 = itertools.combinations(iter1, n_vars)
+        for vars in iter2:
+          vars = list(vars)
+          vars.insert(0, var)
+          holds = True
+          for state in state_list:
+            if not f(state, vars):
+              holds = False
+              break
+          if holds:
+            solution[var] = g(vars)
             break
   return solution
 
@@ -283,31 +250,103 @@ def count_leading_spaces(s: str) -> int:
 def abstraction(obj):
   if hasattr(obj, "shape"):
     try:
-      return False, obj.shape
+      return True, obj.shape
     except:
       return True, None
-  elif isinstance(obj, int) or isinstance(obj, float):
-    return False, obj
   return True, None
+
+def get_types_in_method(method_id, method_id_to_dimensions):
+  if method_id not in method_id_to_dimensions:
+    method_id_to_dimensions[method_id] = set()
+  return method_id_to_dimensions[method_id]
+
+
+def get_symbolic_type(value, vars):
+  abs = value["abs"]
+  symbolic_shape_type = []
+  for _ in abs:
+    symbolic_shape_type.append(vars.get_fresh_id())
+  return symbolic_shape_type
+
+def get_state_update(symbolic_type, value):
+  state_update = dict(zip(symbolic_type, value["abs"]))
+  return state_update
+
+
+last_call_location_id = None
+def create_states(record_list):
+  states = dict()
+  location_id_to_type = dict()
+  state_stack = []
+  method_id_to_types = dict()
+  state = dict()
+  indentation = -1
+  location_to_id = UniqueIdForKey()
+  vars = UniqueId(0)
+  global last_call_location_id
+
+  rlen = len(record_list)
+  is_call = False
+  for i in range(rlen):
+    row = record_list[i]
+    name = ""
+    if "name" in row:
+      name = row["name"]
+    elif "function_name" in row:
+      name = str(row["function_name"]) + "()"
+
+    if row["type"].startswith("CALL_"):
+      is_call = True
+      indentation = row["indentation"]
+      location = tuple([row[x] for x in keys] + [name])
+      location_id = location_to_id.get_id(location)
+      last_call_location_id = location_id
+    else:
+      if row["type"].startswith("RETURN_"):
+        if is_call:
+          is_call = False
+        else:
+          state = state_stack.pop()
+      method_id = row["method_id"]
+      if is_call:
+        is_call = False
+        if row["indentation"] == indentation + 1:
+          state_stack.append(state)
+          types_in_method = get_types_in_method(method_id, method_id_to_types)
+          state = {key: state[key] for key in state if key not in types_in_method}
+      value = row["result_and_args"][0]
+      if is_shape_value(value):
+        location = tuple([row[x] for x in keys] + [name])
+        location_id = location_to_id.get_id(location)
+        if location_id not in location_id_to_type:
+          symbolic_type = get_symbolic_type(value, vars)
+          location_id_to_type[location_id] = (symbolic_type, [value])
+        else:
+          symbolic_type = location_id_to_type[location_id][0]
+          location_id_to_type[location_id][1].append(value)
+        method_id = row["method_id"]
+        types_in_method = get_types_in_method(method_id, method_id_to_types)
+        types_in_method.update(symbolic_type)
+
+        value = location_id_to_type[location_id][1][-1]
+        state_update = get_state_update(symbolic_type, value)
+        state.update(state_update)
+        if location_id not in states:
+          states[location_id] = list()
+        states[location_id].append(dict(state))
+  return states, location_id_to_type, location_to_id, method_id_to_types, vars.counter
 
 
 def process_event(record):
-  global last_object_id
-  result_and_args = record.get("result_and_args", None)
-  if result_and_args:
-    result = result_and_args[0]
-    result_id = result["id"]
-    if isinstance(result_id, ObjectId):
-      last_object_id = result_id
-    record_list.append(record)
+  record_list.append(record)
 
 
-def process_names():
-  for object_id in object_name_space:
-    for d, n in zip(
-        object_id_to_dimension[object_id][0], object_name_space[object_id]
-    ):
-      name_space[d.val] = n
+# def process_names():
+#   for object_id in object_name_space:
+#     for d, n in zip(
+#         object_id_to_dimension[object_id][0], object_name_space[object_id]
+#     ):
+#       name_space[d.val] = n
 
 
 def process_termination():
@@ -320,153 +359,128 @@ def process_termination():
   log_file = util.get_output_path("shape_analysis", "trace.csv")
   log(f"Saving raw data to {log_file}.")
   pd.DataFrame.to_csv(df, log_file)
-  indices = df.apply(has_result, axis=1)
-  df = df[indices]
-  _ = df.apply(get_constraints, axis=1)
-  trim_locations()
-  if verbose:
-    log("location_to_dimension")
-    for k, v in location_to_dimension.items():
-      print(f"{k} : {v}")
-    log("object_id_to_dimension")
-    for k, v in object_id_to_dimension.items():
-      print(f"{k} : {v}")
 
-  n_symbols = DimensionSymbol.counter
-  data = []
-  data2 = []
-  row = [-1] * n_symbols
-  data2.append(row)
-  for state in states:
-    row = [0] * n_symbols
-    for i, v in state.items():
-      row[i.val] = v
-    data.append(row)
-    data2.append(row)
-  if not data:
-    log("No data was instrumented.")
-    return
-  np_data = np.array(data)
-  data2.pop()
-  np_data2 = np.array(data2)
-  change_mask = np_data - np_data2
-  change_mask[change_mask != 0] = 1
-  matrix_file = util.get_output_path("shape_analysis", "matrix.csv")
-  pd.DataFrame(np_data).to_csv(matrix_file)
-
-  process_names()
-  solution = find_solution(np_data, n_symbols, change_mask)
+  states, location_id_to_type, location_to_id, method_id_to_types, n_symbols = create_states(record_list)
+  for k, v in location_id_to_type.items():
+    print(f"{location_to_id.get_key(k)} : {v}")
+  solution = find_solution(states, location_id_to_type, n_symbols)
   for i, v in enumerate(solution):
-    if i in name_space:
-      if isinstance(v, tuple):
-        assert len(v[0]) == 1
-        name_space[v[1][0]] = name_space[i]
-  solution = str_solution(solution)
-  if verbose:
-    log("Printing solution...")
-    for d, e in enumerate(solution):
-      print(f"d{d} -> {e}")
+    print(f"{i} : {v}")
 
-  annotations_by_line_by_module = collections.defaultdict(
-      lambda: collections.defaultdict(list)
-  )
-  for k, v in location_to_dimension.items():
-    module_name, _, _, line_number, opcode, name = k
-    line_number = int(line_number)
-
-    symbolic_shape, concrete_values = v
-    symbolic_shape = [solution[d.val] for d in symbolic_shape]
-    concrete_shapes = concrete_values
-
-    annotation = Annotation(
-        opcode=opcode,
-        name=name,
-#        type=concrete_shape["type"],
-        symbolic_shape=symbolic_shape,
-        concrete_shape=[concrete_shape["abs"] for concrete_shape in concrete_shapes],
-    )
-    annotations_by_line_by_module[module_name][line_number].append(annotation)
-
-  modules_by_name = {}
-  module_text_by_name = {}
-  for module_name, annotations_by_line in annotations_by_line_by_module.items():
-    module = module_loader.import_method_from_module(module_name)
-    modules_by_name[module_name] = module
-
-    module_path = module.__file__
-    with open(module_path, "r") as f:
-      module_text = f.read()
-    module_lines = module_text.split("\n")
-    module_text_by_name[module_name] = module_text
-    sorted_line_numbers = sorted(annotations_by_line)
-
-    def transform_line_number(line_number):
-      # Explanation:
-      # - The line numbers in the trace are one-indexed, so subtracting one is
-      #   necessary to get true line number for indexing into the Python list of
-      #   file content lines.
-      return max(0, line_number - 1)
-
-    annotated_lines = []
-    last_line_number = 0
-
-    for line_number in sorted_line_numbers:
-      if last_line_number == 0:
-        start_index = 0
-      else:
-        start_index = transform_line_number(last_line_number)
-      end_index = transform_line_number(line_number)
-      annotated_lines.extend(module_lines[start_index:end_index])
-      last_line_number = line_number
-
-      annotated_line = module_lines[end_index]
-      indent = count_leading_spaces(annotated_line)
-      annotations = annotations_by_line[line_number]
-      for annotation in annotations:
-        s = annotation.to_string(indent=indent)
-        annotated_lines.append(s)
-
-    end_index = transform_line_number(last_line_number)
-    annotated_lines.extend(module_lines[end_index:])
-
-    if verbose:
-      log(f"Shape annotations for: {module_name}")
-      print(termcolor.colored("=" * 80, attrs=["bold"]))
-      for line in annotated_lines:
-        print(line)
-      print(termcolor.colored("=" * 80, attrs=["bold"]))
-    annotated_source = "\n".join(annotated_lines)
-    annotations_file = util.get_output_path(
-        "shape_analysis", f"annotations/{module_name}.py"
-    )
-    log(f"Saving annotated source file: {annotations_file}.")
-    with open(annotations_file, "w") as out:
-      out.write("# Auto-generated file with array shape annotations.\n")
-      out.write(f"# Original file: {module_path}\n\n")
-      out.write(annotated_source)
-
-  annotations_file = util.get_output_path("shape_analysis", "annotations.txt")
-  with open(annotations_file, "w") as out:
-    log(f"Saving annotations to {annotations_file}.")
-    for (
-        module_name,
-        annotations_by_line,
-    ) in annotations_by_line_by_module.items():
-      for line_number, annotations in annotations_by_line.items():
-        s = []
-        for annotation in annotations:
-          name = get_name(annotation.opcode, annotation.name)
-          shape = tuple(annotation.symbolic_shape)
-          concrete = annotation.concrete_shape
-          s.append((name, shape, concrete))
-        out.write(f"{module_name}@{line_number}:\n")
-        for name, shape, concrete in s:
-          out.write(f"    {name}: {shape} {concrete}\n")
+#   process_names()
+#   solution = find_solution(np_data, n_symbols, change_mask)
+#   for i, v in enumerate(solution):
+#     if i in name_space:
+#       if isinstance(v, tuple):
+#         assert len(v[0]) == 1
+#         name_space[v[1][0]] = name_space[i]
+#   solution = str_solution(solution)
+#   if verbose:
+#     log("Printing solution...")
+#     for d, e in enumerate(solution):
+#       print(f"d{d} -> {e}")
+#
+#   annotations_by_line_by_module = collections.defaultdict(
+#       lambda: collections.defaultdict(list)
+#   )
+#   for k, v in location_to_dimension.items():
+#     module_name, _, _, line_number, opcode, name = k
+#     line_number = int(line_number)
+#
+#     symbolic_shape, concrete_values = v
+#     symbolic_shape = [solution[d.val] for d in symbolic_shape]
+#     concrete_shapes = concrete_values
+#
+#     annotation = Annotation(
+#         opcode=opcode,
+#         name=name,
+# #        type=concrete_shape["type"],
+#         symbolic_shape=symbolic_shape,
+#         concrete_shape=[concrete_shape["abs"] for concrete_shape in concrete_shapes],
+#     )
+#     annotations_by_line_by_module[module_name][line_number].append(annotation)
+#
+#   modules_by_name = {}
+#   module_text_by_name = {}
+#   for module_name, annotations_by_line in annotations_by_line_by_module.items():
+#     module = module_loader.import_method_from_module(module_name)
+#     modules_by_name[module_name] = module
+#
+#     module_path = module.__file__
+#     with open(module_path, "r") as f:
+#       module_text = f.read()
+#     module_lines = module_text.split("\n")
+#     module_text_by_name[module_name] = module_text
+#     sorted_line_numbers = sorted(annotations_by_line)
+#
+#     def transform_line_number(line_number):
+#       # Explanation:
+#       # - The line numbers in the trace are one-indexed, so subtracting one is
+#       #   necessary to get true line number for indexing into the Python list of
+#       #   file content lines.
+#       return max(0, line_number - 1)
+#
+#     annotated_lines = []
+#     last_line_number = 0
+#
+#     for line_number in sorted_line_numbers:
+#       if last_line_number == 0:
+#         start_index = 0
+#       else:
+#         start_index = transform_line_number(last_line_number)
+#       end_index = transform_line_number(line_number)
+#       annotated_lines.extend(module_lines[start_index:end_index])
+#       last_line_number = line_number
+#
+#       annotated_line = module_lines[end_index]
+#       indent = count_leading_spaces(annotated_line)
+#       annotations = annotations_by_line[line_number]
+#       for annotation in annotations:
+#         s = annotation.to_string(indent=indent)
+#         annotated_lines.append(s)
+#
+#     end_index = transform_line_number(last_line_number)
+#     annotated_lines.extend(module_lines[end_index:])
+#
+#     if verbose:
+#       log(f"Shape annotations for: {module_name}")
+#       print(termcolor.colored("=" * 80, attrs=["bold"]))
+#       for line in annotated_lines:
+#         print(line)
+#       print(termcolor.colored("=" * 80, attrs=["bold"]))
+#     annotated_source = "\n".join(annotated_lines)
+#     annotations_file = util.get_output_path(
+#         "shape_analysis", f"annotations/{module_name}.py"
+#     )
+#     log(f"Saving annotated source file: {annotations_file}.")
+#     with open(annotations_file, "w") as out:
+#       out.write("# Auto-generated file with array shape annotations.\n")
+#       out.write(f"# Original file: {module_path}\n\n")
+#       out.write(annotated_source)
+#
+#   annotations_file = util.get_output_path("shape_analysis", "annotations.txt")
+#   with open(annotations_file, "w") as out:
+#     log(f"Saving annotations to {annotations_file}.")
+#     for (
+#         module_name,
+#         annotations_by_line,
+#     ) in annotations_by_line_by_module.items():
+#       for line_number, annotations in annotations_by_line.items():
+#         s = []
+#         for annotation in annotations:
+#           name = get_name(annotation.opcode, annotation.name)
+#           shape = tuple(annotation.symbolic_shape)
+#           concrete = annotation.concrete_shape
+#           s.append((name, shape, concrete))
+#         out.write(f"{module_name}@{line_number}:\n")
+#         for name, shape, concrete in s:
+#           out.write(f"    {name}: {shape} {concrete}\n")
 
 
 def annotate_shape(obj, shape):
+  pass
   # This works because LOAD is executed right before calls to this function.
-  if isinstance(last_object_id, ObjectId):
-    object_name_space[last_object_id] = shape
-  else:
-    log(f"Failed shape annotation for {obj}: {shape}", color="red")
+  # if isinstance(last_object_id, ObjectId):
+  #   object_name_space[last_object_id] = shape
+  # else:
+  #   log(f"Failed shape annotation for {obj}: {shape}", color="red")

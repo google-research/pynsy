@@ -261,7 +261,7 @@ class OperatorApply:
               loc,
               {
                   "name": function_name,
-                  "result_and_args": object_id_stack[1:-1] + [
+                  "result_and_args": [self.novalue] + object_id_stack[1:-1] + [
                       keys,
                   ],
                   "indentation": (
