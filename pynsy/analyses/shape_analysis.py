@@ -149,16 +149,19 @@ class UniqueIdForKey:
     return self.id_to_key[id] if id < len(self.id_to_key) else None
 
 
-class UniqueId:
-  def __init__(self, count):
-    self.counter = count
+class FreshVariableId:
+  def __init__(self):
+    self.id_to_value = list()
 
-  def get_fresh_id(self):
-    self.counter += 1
-    return self.counter - 1
+  def get_fresh_id(self, value):
+    self.id_to_value.append(value)
+    return len(self.id_to_value) - 1
+
+  def get_value(self, id):
+    return self.id_to_value[id]
 
   def num_ids(self):
-    return self.counter
+    return len(self.id_to_value)
 
 # def trim_locations():
 #   global location_to_dimension
@@ -277,11 +280,11 @@ def get_types_in_method(method_id, method_id_to_dimensions):
   return method_id_to_dimensions[method_id]
 
 
-def get_symbolic_type(value, vars):
+def get_symbolic_type(value, vars, location_id):
   abs = value["abs"]
   symbolic_shape_type = []
   for _ in abs:
-    symbolic_shape_type.append(vars.get_fresh_id())
+    symbolic_shape_type.append(vars.get_fresh_id(location_id))
   return symbolic_shape_type
 
 def get_state_update(symbolic_type, value):
@@ -298,7 +301,7 @@ def create_states(record_list):
   state = dict()
   indentation = -1
   location_to_id = UniqueIdForKey()
-  vars = UniqueId(0)
+  fresh_vars = FreshVariableId()
   global last_call_location_id
 
   rlen = len(record_list)
@@ -335,7 +338,7 @@ def create_states(record_list):
         location = tuple([row[x] for x in keys] + [name])
         location_id = location_to_id.get_id(location)
         if location_id not in location_id_to_type:
-          symbolic_type = get_symbolic_type(value, vars)
+          symbolic_type = get_symbolic_type(value, fresh_vars, location_id)
           location_id_to_type[location_id] = (symbolic_type, [value])
         else:
           symbolic_type = location_id_to_type[location_id][0]
@@ -350,7 +353,7 @@ def create_states(record_list):
         if location_id not in states:
           states[location_id] = list()
         states[location_id].append(dict(state))
-  return states, location_id_to_type, location_to_id, method_id_to_types, vars.counter
+  return states, location_id_to_type, location_to_id, method_id_to_types, fresh_vars
 
 
 def process_event(record):
@@ -376,7 +379,8 @@ def process_termination():
   log(f"Saving raw data to {log_file}.")
   pd.DataFrame.to_csv(df, log_file)
 
-  states, location_id_to_type, location_to_id, method_id_to_types, n_symbols = create_states(record_list)
+  states, location_id_to_type, location_to_id, method_id_to_types, fresh_vars = create_states(record_list)
+  n_symbols = fresh_vars.num_ids()
   for k, v in location_id_to_type.items():
     print(f"{location_to_id.get_key(k)} : {v}")
   solution = find_solution(states, location_id_to_type, n_symbols)
