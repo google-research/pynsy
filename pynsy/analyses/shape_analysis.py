@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections
-from collections.abc import Sequence
 import dataclasses
 from datetime import datetime
 import io
@@ -26,7 +24,6 @@ import pandas as pd
 import termcolor
 
 from pynsy.analyses import util
-from pynsy.instrumentation import module_loader
 from pynsy.instrumentation import logging
 from pynsy.instrumentation import util as instrumentation_util
 
@@ -217,7 +214,7 @@ class TemplateInstance:
     self.template = template
     self.vars = vars
 
-  def __str__(self):
+  def __repr__(self):
     return f"{self.template.name}({self.vars})"
 
 class Template:
@@ -230,30 +227,43 @@ class Template:
     return TemplateInstance(self, vars)
 
 templates = [
-    Template("equality", 2, lambda state, vars: state.get(vars[0], 0) == state.get(vars[1])),
-    Template("product", 3, lambda state, vars: state.get(vars[0], 0) == state.get(vars[1], 0) * state.get(vars[2], 0)),
+    Template("=", 2, lambda state, vars: state.get(vars[0], 0) == state.get(vars[1])),
+    Template("*", 3, lambda state, vars: state.get(vars[0], 0) == state.get(vars[1], 0) * state.get(vars[2], 0)),
 ]
 
-def find_solution(states, location_id_to_type, n_symbols):
+def find_solution(states, location_id_to_type, name_space, n_symbols):
   solution = [i for i in range(n_symbols)]
   for location_id, state_list in states.items():
     exclude = location_id_to_type[location_id]
     for template in templates:
       for var in exclude[0]:
-        vars_list = [i for i in range(n_symbols) if i != var and isinstance(solution[i], int)]
-        vars_iter = itertools.combinations(vars_list, template.n_vars - 1)
-        for vars in vars_iter:
-          vars = [var] + list(vars)
-          holds = True
-          for state in state_list:
-            if not template.predicate(state, vars):
-              holds = False
+        if var not in name_space:
+          vars_list = [i for i in range(n_symbols) if i != var and isinstance(solution[i], int)]
+          vars_iter = itertools.combinations(vars_list, template.n_vars - 1)
+          for vars in vars_iter:
+            vars = [var] + list(vars)
+            holds = True
+            for state in state_list:
+              if not template.predicate(state, vars):
+                holds = False
+                break
+            if holds:
+              solution[var] = template.get_instance(vars[1:])
               break
-          if holds:
-            solution[var] = template.get_instance(vars[1:])
-            break
   return solution
 
+
+def get_name_from_name_space(i, name_space):
+  if i in name_space:
+    return name_space[i]
+  else:
+    return f"d{i}"
+def replace_id_with_names(solution, name_space):
+  for i, v in enumerate(solution):
+    if isinstance(v, int):
+      solution[i] = get_name_from_name_space(i, name_space)
+    elif isinstance(v, TemplateInstance):
+      v.vars = [get_name_from_name_space(i, name_space) if isinstance(i, int) else f"d{get_name_from_name_space(i, name_space)}" for i in v.vars]
 
 def get_name(opcode, name):
   if isinstance(name, str) and name:
@@ -292,20 +302,17 @@ def get_state_update(symbolic_type, value):
   return state_update
 
 
-last_call_location_id = None
 def create_states(record_list):
   states = dict()
   location_id_to_type = dict()
   state_stack = []
   method_id_to_types = dict()
   state = dict()
-  indentation = -1
   location_to_id = UniqueIdForKey()
   fresh_vars = FreshVariableId()
-  global last_call_location_id
+  name_space = dict()
 
   rlen = len(record_list)
-  is_call = False
   for i in range(rlen):
     row = record_list[i]
     name = ""
@@ -314,46 +321,40 @@ def create_states(record_list):
     elif "function_name" in row:
       name = str(row["function_name"]) + "()"
 
-    if row["type"].startswith("CALL_"):
-      is_call = True
-      indentation = row["indentation"]
+    if row["type"].startswith("RETURN_") and not record_list[i-1]["type"].startswith("CALL_"):
+      state = state_stack.pop()
+    if not row["type"].startswith("RETURN_") and record_list[i-1]["type"].startswith("CALL_"):
+      method_id = row["method_id"]
+      state_stack.append(state)
+      types_in_method = get_types_in_method(method_id, method_id_to_types)
+      state = {key: state[key] for key in state if key not in types_in_method}
+    value = row["result_and_args"][0]
+    if is_shape_value(value):
       location = tuple([row[x] for x in keys] + [name])
       location_id = location_to_id.get_id(location)
-      last_call_location_id = location_id
-    else:
-      if row["type"].startswith("RETURN_"):
-        if is_call:
-          is_call = False
-        else:
-          state = state_stack.pop()
+      if location_id not in location_id_to_type:
+        symbolic_type = get_symbolic_type(value, fresh_vars, location_id)
+        location_id_to_type[location_id] = (symbolic_type, [value])
+      else:
+        symbolic_type = location_id_to_type[location_id][0]
+        location_id_to_type[location_id][1].append(value)
       method_id = row["method_id"]
-      if is_call:
-        is_call = False
-        if row["indentation"] == indentation + 1:
-          state_stack.append(state)
-          types_in_method = get_types_in_method(method_id, method_id_to_types)
-          state = {key: state[key] for key in state if key not in types_in_method}
-      value = row["result_and_args"][0]
-      if is_shape_value(value):
-        location = tuple([row[x] for x in keys] + [name])
-        location_id = location_to_id.get_id(location)
-        if location_id not in location_id_to_type:
-          symbolic_type = get_symbolic_type(value, fresh_vars, location_id)
-          location_id_to_type[location_id] = (symbolic_type, [value])
-        else:
-          symbolic_type = location_id_to_type[location_id][0]
-          location_id_to_type[location_id][1].append(value)
-        method_id = row["method_id"]
-        types_in_method = get_types_in_method(method_id, method_id_to_types)
-        types_in_method.update(symbolic_type)
+      types_in_method = get_types_in_method(method_id, method_id_to_types)
+      types_in_method.update(symbolic_type)
 
-        value = location_id_to_type[location_id][1][-1]
-        state_update = get_state_update(symbolic_type, value)
-        state.update(state_update)
-        if location_id not in states:
-          states[location_id] = list()
-        states[location_id].append(dict(state))
-  return states, location_id_to_type, location_to_id, method_id_to_types, fresh_vars
+      value = location_id_to_type[location_id][1][-1]
+      if "special" in row:
+        names = row["special"]
+        for dim, name in zip(symbolic_type, names):
+          name_space[dim] = name
+
+      value = location_id_to_type[location_id][1][-1]
+      state_update = get_state_update(symbolic_type, value)
+      state.update(state_update)
+      if location_id not in states:
+        states[location_id] = list()
+      states[location_id].append(dict(state))
+  return states, location_id_to_type, location_to_id, method_id_to_types, fresh_vars, name_space
 
 
 def process_event(record):
@@ -379,11 +380,12 @@ def process_termination():
   log(f"Saving raw data to {log_file}.")
   pd.DataFrame.to_csv(df, log_file)
 
-  states, location_id_to_type, location_to_id, method_id_to_types, fresh_vars = create_states(record_list)
+  states, location_id_to_type, location_to_id, method_id_to_types, fresh_vars, name_space = create_states(record_list)
   n_symbols = fresh_vars.num_ids()
   for k, v in location_id_to_type.items():
     print(f"{location_to_id.get_key(k)} : {v}")
-  solution = find_solution(states, location_id_to_type, n_symbols)
+  solution = find_solution(states, location_id_to_type, name_space, n_symbols)
+  replace_id_with_names(solution, name_space)
   for i, v in enumerate(solution):
     print(f"{i} : {v}")
 
@@ -497,10 +499,19 @@ def process_termination():
 #           out.write(f"    {name}: {shape} {concrete}\n")
 
 
-def annotate_shape(obj, shape):
-  pass
-  # This works because LOAD is executed right before calls to this function.
-  # if isinstance(last_object_id, ObjectId):
-  #   object_name_space[last_object_id] = shape
-  # else:
-  #   log(f"Failed shape annotation for {obj}: {shape}", color="red")
+observed_hyper_parameters = set()
+def annotate_shape(shape_or_int, dim_names):
+  for i in range(len(record_list)-1, -1, -1):
+    if record_list[i]["type"].startswith("CALL_"):
+      record = dict(record_list[i])
+      record["type"] = "LOAD_NAME"
+      record["special"] = (dim_names,) if isinstance(dim_names, str) else dim_names
+      record["result_and_args"] = [{"id": 0, "abs": (shape_or_int,) if isinstance(shape_or_int, int) else shape_or_int.shape}]
+      record_list.append(record)
+      break
+
+def hyper_parameter(dim_int, dim_name):
+  while dim_int in observed_hyper_parameters:
+    dim_int += 1
+  observed_hyper_parameters.add(dim_int)
+  annotate_shape(dim_int, dim_name)
