@@ -214,6 +214,9 @@ class TemplateInstance:
     self.template = template
     self.vars = vars
 
+  def get_name(self):
+    return self.template.name
+
   def __repr__(self):
     return f"{self.template.repr(self.vars)}"
 
@@ -227,6 +230,7 @@ class Template:
   def get_instance(self, vars):
     return TemplateInstance(self, vars)
 
+identity_template = Template("identity", 1, lambda state, vars: True, lambda vars: vars[0])
 templates = [
     Template("=", 2, lambda state, vars: state.get(vars[0], 0) == state.get(vars[1]), lambda vars: vars[0]),
     Template("*", 3, lambda state, vars: False if state.get(vars[1], 0) == 1 or state.get(vars[2], 0) == 1 else state.get(vars[0], 0) == state.get(vars[1], 0) * state.get(vars[2], 0),
@@ -234,12 +238,12 @@ templates = [
 ]
 
 def find_solution(states, location_id_to_type, name_space, n_symbols):
-  solution = [i for i in range(n_symbols)]
+  solution = [TemplateInstance(identity_template, [i]) for i in range(n_symbols)]
   for location_id, state_list in states.items():
     exclude = location_id_to_type[location_id]
     for template in templates:
       for var in exclude[0]:
-        vars_list = [i for i in range(n_symbols) if i != var and isinstance(solution[i], int)]
+        vars_list = [i for i in range(n_symbols) if i != var and solution[i].get_name() == "identity"]
         vars_iter = itertools.combinations(vars_list, template.n_vars - 1)
         for vars in vars_iter:
           vars = [var] + list(vars)
@@ -259,25 +263,31 @@ def get_name_from_name_space(i, name_space):
     return name_space[i]
   else:
     return f"d{i}"
-def replace_id_with_names(solution, name_space):
-  var_to_name = dict()
-  equivalence_class = [{i} for i in range(len(solution))]
+
+
+def get_equivalence_classes(solution):
+  equivalence_classes = [{i} for i in range(len(solution))]
   for i, v in enumerate(solution):
-    if isinstance(v, TemplateInstance) and v.template.name == "=":
+    if v.get_name() == "=":
       lhs = i
       rhs = v.vars[0]
       lhs_index = None
       rhs_index = None
-      for j, s in enumerate(equivalence_class):
+      for j, s in enumerate(equivalence_classes):
         if s is not None and lhs in s:
           lhs_index = j
         if s is not None and rhs in s:
           rhs_index = j
       if lhs_index != rhs_index:
         lhs_index, rhs_index = min(lhs_index, rhs_index),  max(lhs_index, rhs_index)
-        equivalence_class[lhs_index].update(equivalence_class[rhs_index])
-        equivalence_class[rhs_index] = None
-  for i, s in enumerate(equivalence_class):
+        equivalence_classes[lhs_index].update(equivalence_classes[rhs_index])
+        equivalence_classes[rhs_index] = None
+  return equivalence_classes
+
+
+def get_var_to_name(equivalence_classes, name_space):
+  var_to_name = dict()
+  for i, s in enumerate(equivalence_classes):
     done = False
     if s is not None:
       for n in name_space:
@@ -290,11 +300,13 @@ def replace_id_with_names(solution, name_space):
         min_e = min(s)
         for e in s:
           var_to_name[e] = f"d{min_e}"
+  return var_to_name
+
+def replace_id_with_names(solution, name_space):
+  equivalence_classes = get_equivalence_classes(solution)
+  var_to_name = get_var_to_name(equivalence_classes, name_space)
   for i, v in enumerate(solution):
-    if isinstance(v, int):
-      solution[i] = var_to_name[v]
-    elif isinstance(v, TemplateInstance):
-      v.vars = [var_to_name[i] for i in v.vars]
+    v.vars = [var_to_name[i] for i in v.vars]
 
 def get_name(opcode, name):
   if isinstance(name, str) and name:
@@ -373,7 +385,6 @@ def create_states(record_list):
       types_in_method = get_types_in_method(method_id, method_id_to_types)
       types_in_method.update(symbolic_type)
 
-      value = location_id_to_type[location_id][1][-1]
       if "special" in row:
         names = row["special"]
         for dim, name in zip(symbolic_type, names):
@@ -414,7 +425,7 @@ def process_termination():
   states, location_id_to_type, location_to_id, method_id_to_types, fresh_vars, name_space = create_states(record_list)
   n_symbols = fresh_vars.num_ids()
   for k, v in location_id_to_type.items():
-    print(f"{location_to_id.get_key(k)} : {v}")
+    print(f"{location_to_id.get_key(k)}({k}) : {v}")
   solution = find_solution(states, location_id_to_type, name_space, n_symbols)
   print(name_space)
   replace_id_with_names(solution, name_space)
@@ -422,7 +433,7 @@ def process_termination():
     print(f"{i} : {v}")
 
   for location_id, s_type in location_id_to_type.items():
-    print(f"{location_to_id.get_key(location_id)} : {[solution[x] for x in s_type[0]]}")
+    print(f"{location_id}({location_to_id.get_key(location_id)}) : {[solution[x] for x in s_type[0]]}")
 
 #   process_names()
 #   solution = find_solution(np_data, n_symbols, change_mask)
