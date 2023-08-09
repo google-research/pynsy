@@ -385,7 +385,7 @@ def process_termination():
   states, location_id_to_type_and_values, location_to_id, method_id_to_types, fresh_vars, name_space = create_states(record_list)
   n_symbols = fresh_vars.num_ids()
   for k, v in location_id_to_type_and_values.items():
-    print(f"{location_to_id.get_key(k)}({k}) : {v}")
+    print(f"{k}{location_to_id.get_key(k)} : {v}")
   solution = find_solution(states, location_id_to_type_and_values, n_symbols)
   print(name_space)
   replace_id_with_names(solution, name_space)
@@ -396,7 +396,7 @@ def process_termination():
   for location_id, type_and_values in location_id_to_type_and_values.items():
     symbolic_type = type_and_values.get_type()
     if all(map(lambda x: solution[x].get_name() != "identity", symbolic_type)):
-      print(f"{location_id}({location_to_id.get_key(location_id)}) : {[solution[x] for x in type_and_values.get_type()]}")
+      print(f"{location_id}{location_to_id.get_key(location_id)} : {[solution[x] for x in type_and_values.get_type()]}")
 
 #   process_names()
 #   solution = find_solution(np_data, n_symbols, change_mask)
