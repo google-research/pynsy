@@ -104,27 +104,13 @@ nicknames = {
     "INPLACE_AND": "&=",
     "INPLACE_XOR": "^=",
     "INPLACE_OR": "|=",
-    # "MAKE_FUNCTION": "<def>",
-    # "LOAD_NAME": "<load>",
-    # "LOAD_FAST": "<load>",
-    # "LOAD_DEREF": "<load>",
-    # "LOAD_CLOSURE": "<load>",
-    # "LOAD_ATTR": "<load>",
-    # "LOAD_CONST": "<load>",
-    # "LOAD_GLOBAL": "<load>",
-    # "CALL_FUNCTION": "<call>",
-    # "CALL_FUNCTION_KW": "<call>",
-    # "CALL_METHOD": "<call>",
-    # "RETURN_FUNCTION": "<call>",
-    # "RETURN_FUNCTION_KW": "<call>",
-    # "RETURN_METHOD": "<call>",
+    "RETURN_FUNCTION": "<call>",
+    "RETURN_FUNCTION_KW": "<call>",
+    "RETURN_METHOD": "<call>",
 }
 
 
 
-# def has_result(row):
-#   return row["result_and_args"][0]["abs"] is not None
-#
 
 class UniqueIdForKey:
 
@@ -160,22 +146,6 @@ class FreshVariableId:
   def num_ids(self):
     return len(self.id_to_value)
 
-# def trim_locations():
-#   global location_to_dimension
-#   location_to_dimension = {
-#       k: v for k, v in location_to_dimension.items() if is_shape(v[0])
-#   }
-
-
-def flatten(l):
-  ret = []
-  for t in l:
-    if isinstance(t, tuple):
-      if isinstance(t[2], tuple) or isinstance(t[2], list):
-        ret = ret + list(t[2])
-  return ret
-
-
 def is_shape_value(value):
   return is_shape(value["abs"])
 
@@ -183,31 +153,6 @@ def is_shape_value(value):
 def is_shape(s):
   return isinstance(s, list) or isinstance(s, tuple)
 
-
-
-# def format_dimension(i):
-#   if i in name_space:
-#     return name_space[i]
-#   else:
-#     return f"d{i}"
-
-
-# def str_solution(solution):
-#   ret = [""] * len(solution)
-#   for i, v in enumerate(solution):
-#     if isinstance(v, int):
-#       ret[i] = format_dimension(i)
-#     else:
-#       s = ""
-#       for c, var in zip(v[0], v[1]):
-#         if c == 1:
-#           s += format_dimension(var) + " +"
-#         else:
-#           s += f"{c}" + format_dimension(var) + " +"
-#       if len(s) > 0:
-#         s = s[0:-2]
-#       ret[i] = f"{s}"
-#   return ret
 
 class TemplateInstance:
   def __init__(self, template, vars):
@@ -237,12 +182,12 @@ templates = [
              lambda vars: f"{vars[0]}*{vars[1]}"),
 ]
 
-def find_solution(states, location_id_to_type, name_space, n_symbols):
+def find_solution(states, location_id_to_type_and_values, n_symbols):
   solution = [TemplateInstance(identity_template, [i]) for i in range(n_symbols)]
   for location_id, state_list in states.items():
-    exclude = location_id_to_type[location_id]
+    exclude = location_id_to_type_and_values[location_id].get_type()
     for template in templates:
-      for var in exclude[0]:
+      for var in exclude:
         vars_list = [i for i in range(n_symbols) if i != var and solution[i].get_name() == "identity"]
         vars_iter = itertools.combinations(vars_list, template.n_vars - 1)
         for vars in vars_iter:
@@ -345,9 +290,29 @@ def get_state_update(symbolic_type, value):
   return state_update
 
 
+class TypeAndValues:
+  def __init__(self, type):
+    self.type = type
+    self.values = []
+
+  def add_value(self, value):
+    self.values.append(value)
+
+  def get_type(self):
+    return self.type
+
+  def get_values(self):
+    return self.values
+
+  def get_last_value(self):
+    return self.values[-1]
+
+  def __repr__(self):
+    return f"(type : {self.type}, values: {self.values})"
+
 def create_states(record_list):
   states = dict()
-  location_id_to_type = dict()
+  location_id_to_type_and_values = dict()
   state_stack = []
   method_id_to_types = dict()
   state = dict()
@@ -363,6 +328,7 @@ def create_states(record_list):
       name = row["name"]
     elif "function_name" in row:
       name = str(row["function_name"]) + "()"
+    name = get_name(row["type"], name)
 
     if row["type"].startswith("RETURN_") and not record_list[i-1]["type"].startswith("CALL_"):
       state = state_stack.pop()
@@ -373,14 +339,16 @@ def create_states(record_list):
       state = {key: state[key] for key in state if key not in types_in_method}
     value = row["result_and_args"][0]
     if is_shape_value(value):
-      location = tuple([row[x] for x in keys] + [name])
+      location = tuple([name] + [row[x] for x in keys])
       location_id = location_to_id.get_id(location)
-      if location_id not in location_id_to_type:
+      if location_id not in location_id_to_type_and_values:
         symbolic_type = get_symbolic_type(value, fresh_vars, location_id)
-        location_id_to_type[location_id] = (symbolic_type, [value])
+        type_and_values = TypeAndValues(symbolic_type)
+        type_and_values.add_value(value)
+        location_id_to_type_and_values[location_id] = type_and_values
       else:
-        symbolic_type = location_id_to_type[location_id][0]
-        location_id_to_type[location_id][1].append(value)
+        symbolic_type = location_id_to_type_and_values[location_id].get_type()
+        location_id_to_type_and_values[location_id].add_value(value)
       method_id = row["method_id"]
       types_in_method = get_types_in_method(method_id, method_id_to_types)
       types_in_method.update(symbolic_type)
@@ -390,25 +358,17 @@ def create_states(record_list):
         for dim, name in zip(symbolic_type, names):
           name_space[dim] = name
 
-      value = location_id_to_type[location_id][1][-1]
+      value = location_id_to_type_and_values[location_id].get_last_value()
       state_update = get_state_update(symbolic_type, value)
       state.update(state_update)
       if location_id not in states:
         states[location_id] = list()
       states[location_id].append(dict(state))
-  return states, location_id_to_type, location_to_id, method_id_to_types, fresh_vars, name_space
+  return states, location_id_to_type_and_values, location_to_id, method_id_to_types, fresh_vars, name_space
 
 
 def process_event(record):
   record_list.append(record)
-
-
-# def process_names():
-#   for object_id in object_name_space:
-#     for d, n in zip(
-#         object_id_to_dimension[object_id][0], object_name_space[object_id]
-#     ):
-#       name_space[d.val] = n
 
 
 def process_termination():
@@ -422,18 +382,21 @@ def process_termination():
   log(f"Saving raw data to {log_file}.")
   pd.DataFrame.to_csv(df, log_file)
 
-  states, location_id_to_type, location_to_id, method_id_to_types, fresh_vars, name_space = create_states(record_list)
+  states, location_id_to_type_and_values, location_to_id, method_id_to_types, fresh_vars, name_space = create_states(record_list)
   n_symbols = fresh_vars.num_ids()
-  for k, v in location_id_to_type.items():
+  for k, v in location_id_to_type_and_values.items():
     print(f"{location_to_id.get_key(k)}({k}) : {v}")
-  solution = find_solution(states, location_id_to_type, name_space, n_symbols)
+  solution = find_solution(states, location_id_to_type_and_values, n_symbols)
   print(name_space)
   replace_id_with_names(solution, name_space)
-  for i, v in enumerate(solution):
-    print(f"{i} : {v}")
 
-  for location_id, s_type in location_id_to_type.items():
-    print(f"{location_id}({location_to_id.get_key(location_id)}) : {[solution[x] for x in s_type[0]]}")
+  # for i, v in enumerate(solution):
+  #   print(f"{i} : {v}")
+  #
+  for location_id, type_and_values in location_id_to_type_and_values.items():
+    symbolic_type = type_and_values.get_type()
+    if all(map(lambda x: solution[x].get_name() != "identity", symbolic_type)):
+      print(f"{location_id}({location_to_id.get_key(location_id)}) : {[solution[x] for x in type_and_values.get_type()]}")
 
 #   process_names()
 #   solution = find_solution(np_data, n_symbols, change_mask)
