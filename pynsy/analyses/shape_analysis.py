@@ -215,20 +215,22 @@ class TemplateInstance:
     self.vars = vars
 
   def __repr__(self):
-    return f"{self.template.name}({self.vars})"
+    return f"{self.template.repr(self.vars)}"
 
 class Template:
-  def __init__(self, name, n_vars, predicate):
+  def __init__(self, name, n_vars, predicate, repr):
     self.name = name
     self.n_vars = n_vars
     self.predicate = predicate
+    self.repr = repr
 
   def get_instance(self, vars):
     return TemplateInstance(self, vars)
 
 templates = [
-    Template("=", 2, lambda state, vars: state.get(vars[0], 0) == state.get(vars[1])),
-    Template("*", 3, lambda state, vars: state.get(vars[0], 0) == state.get(vars[1], 0) * state.get(vars[2], 0)),
+    Template("=", 2, lambda state, vars: state.get(vars[0], 0) == state.get(vars[1]), lambda vars: vars[0]),
+    Template("*", 3, lambda state, vars: False if state.get(vars[1], 0) == 1 or state.get(vars[2], 0) == 1 else state.get(vars[0], 0) == state.get(vars[1], 0) * state.get(vars[2], 0),
+             lambda vars: f"{vars[0]}*{vars[1]}"),
 ]
 
 def find_solution(states, location_id_to_type, name_space, n_symbols):
@@ -237,19 +239,18 @@ def find_solution(states, location_id_to_type, name_space, n_symbols):
     exclude = location_id_to_type[location_id]
     for template in templates:
       for var in exclude[0]:
-        if var not in name_space:
-          vars_list = [i for i in range(n_symbols) if i != var and isinstance(solution[i], int)]
-          vars_iter = itertools.combinations(vars_list, template.n_vars - 1)
-          for vars in vars_iter:
-            vars = [var] + list(vars)
-            holds = True
-            for state in state_list:
-              if not template.predicate(state, vars):
-                holds = False
-                break
-            if holds:
-              solution[var] = template.get_instance(vars[1:])
+        vars_list = [i for i in range(n_symbols) if i != var and isinstance(solution[i], int)]
+        vars_iter = itertools.combinations(vars_list, template.n_vars - 1)
+        for vars in vars_iter:
+          vars = [var] + list(vars)
+          holds = True
+          for state in state_list:
+            if not template.predicate(state, vars):
+              holds = False
               break
+          if holds:
+            solution[var] = template.get_instance(vars[1:])
+            break
   return solution
 
 
@@ -259,11 +260,41 @@ def get_name_from_name_space(i, name_space):
   else:
     return f"d{i}"
 def replace_id_with_names(solution, name_space):
+  var_to_name = dict()
+  equivalence_class = [{i} for i in range(len(solution))]
+  for i, v in enumerate(solution):
+    if isinstance(v, TemplateInstance) and v.template.name == "=":
+      lhs = i
+      rhs = v.vars[0]
+      lhs_index = None
+      rhs_index = None
+      for j, s in enumerate(equivalence_class):
+        if s is not None and lhs in s:
+          lhs_index = j
+        if s is not None and rhs in s:
+          rhs_index = j
+      if lhs_index != rhs_index:
+        lhs_index, rhs_index = min(lhs_index, rhs_index),  max(lhs_index, rhs_index)
+        equivalence_class[lhs_index].update(equivalence_class[rhs_index])
+        equivalence_class[rhs_index] = None
+  for i, s in enumerate(equivalence_class):
+    done = False
+    if s is not None:
+      for n in name_space:
+        if n in s:
+          done = True
+          for e in s:
+            var_to_name[e] = name_space[n]
+          break
+      if not done:
+        min_e = min(s)
+        for e in s:
+          var_to_name[e] = f"d{min_e}"
   for i, v in enumerate(solution):
     if isinstance(v, int):
-      solution[i] = get_name_from_name_space(i, name_space)
+      solution[i] = var_to_name[v]
     elif isinstance(v, TemplateInstance):
-      v.vars = [get_name_from_name_space(i, name_space) if isinstance(i, int) else f"d{get_name_from_name_space(i, name_space)}" for i in v.vars]
+      v.vars = [var_to_name[i] for i in v.vars]
 
 def get_name(opcode, name):
   if isinstance(name, str) and name:
@@ -385,9 +416,13 @@ def process_termination():
   for k, v in location_id_to_type.items():
     print(f"{location_to_id.get_key(k)} : {v}")
   solution = find_solution(states, location_id_to_type, name_space, n_symbols)
+  print(name_space)
   replace_id_with_names(solution, name_space)
   for i, v in enumerate(solution):
     print(f"{i} : {v}")
+
+  for location_id, s_type in location_id_to_type.items():
+    print(f"{location_to_id.get_key(location_id)} : {[solution[x] for x in s_type[0]]}")
 
 #   process_names()
 #   solution = find_solution(np_data, n_symbols, change_mask)
@@ -515,3 +550,4 @@ def hyper_parameter(dim_int, dim_name):
     dim_int += 1
   observed_hyper_parameters.add(dim_int)
   annotate_shape(dim_int, dim_name)
+  return dim_int

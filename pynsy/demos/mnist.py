@@ -61,7 +61,7 @@ def accuracy(params, batch):
   return jnp.mean(predicted_class == target_class)
 
 
-layer_sizes = [784, 1024, 1024, 10]
+layer_sizes = [shaper.hyper_parameter(784, "hidden1"), shaper.hyper_parameter(1024, "hidden2"), shaper.hyper_parameter(1024, "hidden3"), shaper.hyper_parameter(10, "classes")]
 param_scale = 0.1
 step_size = 0.001
 num_epochs = 10
