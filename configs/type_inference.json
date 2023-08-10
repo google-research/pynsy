@@ -1,0 +1,11 @@
+{
+  "analyzers": [
+    "pynsy.analyses.type_inference"
+  ],
+  "instrumentation_rules": {
+    "include": [
+      "pynsy.demos."
+    ],
+    "exclude": ["pynsy."]
+  }
+}

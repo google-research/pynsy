@@ -176,13 +176,13 @@ class OperatorApply:
       self.handle_jump_target(instr_id + 1)
     else:
       opcode = instr.opcode
-      object_id_stack = self.convert_stack_to_heap_id(stack)
       loc = (
           module_name,
           method_id,
           instr_id,
           getlineno(id_to_orig_bytecode, method_id, instr_id),
       )
+      object_id_stack = self.convert_stack_to_heap_id(stack)
       if opname[opcode] == "CALL_FUNCTION":
         if not is_post:
           self.function_call_stack.append(stack[0])
