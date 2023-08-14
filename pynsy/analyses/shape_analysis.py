@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections
 import dataclasses
 from datetime import datetime
 import io
@@ -25,6 +26,7 @@ import termcolor
 
 from pynsy.analyses import util
 from pynsy.instrumentation import logging
+from pynsy.instrumentation import module_loader
 from pynsy.instrumentation import util as instrumentation_util
 
 ObjectId = instrumentation_util.ObjectId
@@ -61,7 +63,8 @@ class Annotation:
     out = io.StringIO()
     out.write(" " * indent)
     name = get_name(self.opcode, self.name)
-    msg = f"# {name}: {self.symbolic_shape} {self.concrete_shape}"
+    concrete_shape_str = " ".join(str(x) for x in self.concrete_shape)
+    msg = f"# {name}: {self.symbolic_shape} • {concrete_shape_str}"
     out.write(msg)
     s = out.getvalue()
     if color:
@@ -206,7 +209,7 @@ def find_solution(states, location_id_to_type_and_values, n_symbols):
       TemplateInstance(identity_template, [i]) for i in range(n_symbols)
   ]
   for location_id, state_list in states.items():
-    exclude = location_id_to_type_and_values[location_id].get_type()
+    exclude = location_id_to_type_and_values[location_id].type
     for template in templates:
       for var in exclude:
         vars_list = [
@@ -321,7 +324,10 @@ def get_state_update(symbolic_type, value):
   return state_update
 
 
+@dataclasses.dataclass
 class TypeAndValues:
+  type: type[Any]
+  values: list[Any]
 
   def __init__(self, type):
     self.type = type
@@ -330,17 +336,31 @@ class TypeAndValues:
   def add_value(self, value):
     self.values.append(value)
 
-  def get_type(self):
-    return self.type
-
-  def get_values(self):
-    return self.values
-
   def get_last_value(self):
     return self.values[-1]
 
-  def __repr__(self):
-    return f"(type : {self.type}, values: {self.values})"
+
+# @dataclasses.dataclass
+# class TypeAndValues:
+
+#   def __init__(self, type):
+#     self.type = type
+#     self.values = []
+
+#   def add_value(self, value):
+#     self.values.append(value)
+
+#   def get_type(self):
+#     return self.type
+
+#   def get_values(self):
+#     return self.values
+
+#   def get_last_value(self):
+#     return self.values[-1]
+
+#   def __repr__(self):
+#     return f"(type : {self.type}, values: {self.values})"
 
 
 def create_states(record_list):
@@ -384,7 +404,7 @@ def create_states(record_list):
         type_and_values.add_value(value)
         location_id_to_type_and_values[location_id] = type_and_values
       else:
-        symbolic_type = location_id_to_type_and_values[location_id].get_type()
+        symbolic_type = location_id_to_type_and_values[location_id].type
         location_id_to_type_and_values[location_id].add_value(value)
       method_id = row["method_id"]
       types_in_method = get_types_in_method(method_id, method_id_to_types)
@@ -445,122 +465,130 @@ def process_termination():
   #   print(f"{i} : {v}")
   #
   for location_id, type_and_values in location_id_to_type_and_values.items():
-    symbolic_type = type_and_values.get_type()
-    if all(map(lambda x: solution[x].get_name() != "identity", symbolic_type)):
+    symbolic_type = type_and_values.type
+    if all(solution[x].get_name() != "identity" for x in symbolic_type):
       print(
           f"{location_id}{location_to_id.get_key(location_id)} :"
-          f" {[solution[x] for x in type_and_values.get_type()]}"
+          f" {[solution[x] for x in type_and_values.type]}"
       )
 
+  #   process_names()
+  #   solution = find_solution(np_data, n_symbols, change_mask)
+  #   for i, v in enumerate(solution):
+  #     if i in name_space:
+  #       if isinstance(v, tuple):
+  #         assert len(v[0]) == 1
+  #         name_space[v[1][0]] = name_space[i]
+  #   solution = str_solution(solution)
+  #   if verbose:
+  #     log("Printing solution...")
+  #     for d, e in enumerate(solution):
+  #       print(f"d{d} -> {e}")
+  #
 
-#   process_names()
-#   solution = find_solution(np_data, n_symbols, change_mask)
-#   for i, v in enumerate(solution):
-#     if i in name_space:
-#       if isinstance(v, tuple):
-#         assert len(v[0]) == 1
-#         name_space[v[1][0]] = name_space[i]
-#   solution = str_solution(solution)
-#   if verbose:
-#     log("Printing solution...")
-#     for d, e in enumerate(solution):
-#       print(f"d{d} -> {e}")
-#
-#   annotations_by_line_by_module = collections.defaultdict(
-#       lambda: collections.defaultdict(list)
-#   )
-#   for k, v in location_to_dimension.items():
-#     module_name, _, _, line_number, opcode, name = k
-#     line_number = int(line_number)
-#
-#     symbolic_shape, concrete_values = v
-#     symbolic_shape = [solution[d.val] for d in symbolic_shape]
-#     concrete_shapes = concrete_values
-#
-#     annotation = Annotation(
-#         opcode=opcode,
-#         name=name,
-# #        type=concrete_shape["type"],
-#         symbolic_shape=symbolic_shape,
-#         concrete_shape=[concrete_shape["abs"] for concrete_shape in concrete_shapes],
-#     )
-#     annotations_by_line_by_module[module_name][line_number].append(annotation)
-#
-#   modules_by_name = {}
-#   module_text_by_name = {}
-#   for module_name, annotations_by_line in annotations_by_line_by_module.items():
-#     module = module_loader.import_method_from_module(module_name)
-#     modules_by_name[module_name] = module
-#
-#     module_path = module.__file__
-#     with open(module_path, "r") as f:
-#       module_text = f.read()
-#     module_lines = module_text.split("\n")
-#     module_text_by_name[module_name] = module_text
-#     sorted_line_numbers = sorted(annotations_by_line)
-#
-#     def transform_line_number(line_number):
-#       # Explanation:
-#       # - The line numbers in the trace are one-indexed, so subtracting one is
-#       #   necessary to get true line number for indexing into the Python list of
-#       #   file content lines.
-#       return max(0, line_number - 1)
-#
-#     annotated_lines = []
-#     last_line_number = 0
-#
-#     for line_number in sorted_line_numbers:
-#       if last_line_number == 0:
-#         start_index = 0
-#       else:
-#         start_index = transform_line_number(last_line_number)
-#       end_index = transform_line_number(line_number)
-#       annotated_lines.extend(module_lines[start_index:end_index])
-#       last_line_number = line_number
-#
-#       annotated_line = module_lines[end_index]
-#       indent = count_leading_spaces(annotated_line)
-#       annotations = annotations_by_line[line_number]
-#       for annotation in annotations:
-#         s = annotation.to_string(indent=indent)
-#         annotated_lines.append(s)
-#
-#     end_index = transform_line_number(last_line_number)
-#     annotated_lines.extend(module_lines[end_index:])
-#
-#     if verbose:
-#       log(f"Shape annotations for: {module_name}")
-#       print(termcolor.colored("=" * 80, attrs=["bold"]))
-#       for line in annotated_lines:
-#         print(line)
-#       print(termcolor.colored("=" * 80, attrs=["bold"]))
-#     annotated_source = "\n".join(annotated_lines)
-#     annotations_file = util.get_output_path(
-#         "shape_analysis", f"annotations/{module_name}.py"
-#     )
-#     log(f"Saving annotated source file: {annotations_file}.")
-#     with open(annotations_file, "w") as out:
-#       out.write("# Auto-generated file with array shape annotations.\n")
-#       out.write(f"# Original file: {module_path}\n\n")
-#       out.write(annotated_source)
-#
-#   annotations_file = util.get_output_path("shape_analysis", "annotations.txt")
-#   with open(annotations_file, "w") as out:
-#     log(f"Saving annotations to {annotations_file}.")
-#     for (
-#         module_name,
-#         annotations_by_line,
-#     ) in annotations_by_line_by_module.items():
-#       for line_number, annotations in annotations_by_line.items():
-#         s = []
-#         for annotation in annotations:
-#           name = get_name(annotation.opcode, annotation.name)
-#           shape = tuple(annotation.symbolic_shape)
-#           concrete = annotation.concrete_shape
-#           s.append((name, shape, concrete))
-#         out.write(f"{module_name}@{line_number}:\n")
-#         for name, shape, concrete in s:
-#           out.write(f"    {name}: {shape} {concrete}\n")
+  annotations_by_line_by_module = collections.defaultdict(
+      lambda: collections.defaultdict(list)
+  )
+  for location_id, type_and_values in location_id_to_type_and_values.items():
+    name, module_name, method_id, instruction_id, line_number, opcode = (
+        location_to_id.get_key(location_id)
+    )
+    del method_id, instruction_id
+    line_number = int(line_number)
+
+    # symbolic_shape, concrete_values = v
+    # symbolic_shape = [solution[d.val] for d in symbolic_shape]
+    # concrete_shapes = concrete_values
+
+    symbolic_type = type_and_values.type
+    symbolic_shape = [solution[x] for x in type_and_values.type]
+    concrete_shapes = type_and_values.values
+
+    annotation = Annotation(
+        opcode=opcode,
+        name=name,
+        symbolic_shape=symbolic_shape,
+        concrete_shape=[
+            concrete_shape["abs"] for concrete_shape in concrete_shapes
+        ],
+    )
+    annotations_by_line_by_module[module_name][line_number].append(annotation)
+
+  modules_by_name = {}
+  module_text_by_name = {}
+  for module_name, annotations_by_line in annotations_by_line_by_module.items():
+    module = module_loader.import_method_from_module(module_name)
+    modules_by_name[module_name] = module
+
+    module_path = module.__file__
+    with open(module_path, "r") as f:
+      module_text = f.read()
+    module_lines = module_text.split("\n")
+    module_text_by_name[module_name] = module_text
+    sorted_line_numbers = sorted(annotations_by_line)
+
+    def transform_line_number(line_number):
+      # Explanation:
+      # - The line numbers in the trace are one-indexed, so subtracting one is
+      #   necessary to get true line number for indexing into the Python list of
+      #   file content lines.
+      return max(0, line_number - 1)
+
+    annotated_lines = []
+    last_line_number = 0
+
+    for line_number in sorted_line_numbers:
+      if last_line_number == 0:
+        start_index = 0
+      else:
+        start_index = transform_line_number(last_line_number)
+      end_index = transform_line_number(line_number)
+      annotated_lines.extend(module_lines[start_index:end_index])
+      last_line_number = line_number
+
+      annotated_line = module_lines[end_index]
+      indent = count_leading_spaces(annotated_line)
+      annotations = annotations_by_line[line_number]
+      for annotation in annotations:
+        s = annotation.to_string(indent=indent)
+        annotated_lines.append(s)
+
+    end_index = transform_line_number(last_line_number)
+    annotated_lines.extend(module_lines[end_index:])
+
+    if verbose:
+      log(f"Shape annotations for: {module_name}")
+      print(termcolor.colored("=" * 80, attrs=["bold"]))
+      for line in annotated_lines:
+        print(line)
+      print(termcolor.colored("=" * 80, attrs=["bold"]))
+    annotated_source = "\n".join(annotated_lines)
+    annotations_file = util.get_output_path(
+        "shape_analysis", f"annotations/{module_name}.py"
+    )
+    log(f"Saving annotated source file: {annotations_file}.")
+    with open(annotations_file, "w") as out:
+      out.write("# Auto-generated file with array shape annotations.\n")
+      out.write(f"# Original file: {module_path}\n\n")
+      out.write(annotated_source)
+
+  annotations_file = util.get_output_path("shape_analysis", "annotations.txt")
+  with open(annotations_file, "w") as out:
+    log(f"Saving annotations to {annotations_file}.")
+    for (
+        module_name,
+        annotations_by_line,
+    ) in annotations_by_line_by_module.items():
+      for line_number, annotations in annotations_by_line.items():
+        s = []
+        for annotation in annotations:
+          name = get_name(annotation.opcode, annotation.name)
+          shape = tuple(annotation.symbolic_shape)
+          concrete = annotation.concrete_shape
+          s.append((name, shape, concrete))
+        out.write(f"{module_name}@{line_number}:\n")
+        for name, shape, concrete in s:
+          out.write(f"    {name}: {shape} {concrete}\n")
 
 
 observed_hyper_parameters = set()
