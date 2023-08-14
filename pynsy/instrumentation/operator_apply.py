@@ -130,9 +130,7 @@ class OperatorApply:
           # TODO: Check if this fallback logic is acceptable.
           return self.heap_object_tracking.get_object_id(fn_object)
         cell = fn_object.__closure__[var_index]
-        return self.cell_to_frame[
-            self.heap_object_tracking.get_object_id(cell)
-        ]
+        return self.cell_to_frame[self.heap_object_tracking.get_object_id(cell)]
 
   def call_process_event_on_record(
       self, loc, rest: Dict = None, opcode=-1, type=None
@@ -261,9 +259,13 @@ class OperatorApply:
               loc,
               {
                   "name": function_name,
-                  "result_and_args": [self.novalue] + object_id_stack[1:-1] + [
-                      keys,
-                  ],
+                  "result_and_args": (
+                      [self.novalue]
+                      + object_id_stack[1:-1]
+                      + [
+                          keys,
+                      ]
+                  ),
                   "indentation": (
                       len(self.loop_stack) + len(self.function_call_stack)
                   ) - 1,

@@ -167,7 +167,9 @@ class HookManager:
     pass
 
   def __enter__(self) -> "HookManager":
-    self.path_finder = PynsyPathFinder(self.existing_importers, self.event_handler)
+    self.path_finder = PynsyPathFinder(
+        self.existing_importers, self.event_handler
+    )
     sys.meta_path.insert(0, self.path_finder)
     return self
 
@@ -191,12 +193,12 @@ def instrument_imports(config: str) -> HookManager:
   event_handler = OperatorApply()
   log(f"Loading config at {config}.")
   with open(config, "r") as f:
-    if config.endswith('.toml'):
+    if config.endswith(".toml"):
       handle.config = toml.load(f)
-    elif config.endswith('.json'):
+    elif config.endswith(".json"):
       handle.config = json.load(f)
     else:
-      raise ValueError(f'Unknown configuration file format: {config}')
+      raise ValueError(f"Unknown configuration file format: {config}")
   handle.instrumentation_rules = handle.config.get("instrumentation_rules", [])
   handle.custom_analyzer = [
       import_method_from_module(m) for m in handle.config.get("analyzers", [])

@@ -61,7 +61,12 @@ def accuracy(params, batch):
   return jnp.mean(predicted_class == target_class)
 
 
-layer_sizes = [shaper.hyper_parameter(784, "hidden1"), shaper.hyper_parameter(1024, "hidden2"), shaper.hyper_parameter(1024, "hidden3"), shaper.hyper_parameter(10, "classes")]
+layer_sizes = [
+    shaper.hyper_parameter(784, "hidden1"),
+    shaper.hyper_parameter(1024, "hidden2"),
+    shaper.hyper_parameter(1024, "hidden3"),
+    shaper.hyper_parameter(10, "classes"),
+]
 param_scale = 0.1
 step_size = 0.001
 num_epochs = 10
@@ -102,7 +107,7 @@ def main():
     epoch_time = time.time() - start_time
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
   main()
   # train_acc = accuracy(params, (train_images, train_labels))
   # test_acc = accuracy(params, (test_images, test_labels))

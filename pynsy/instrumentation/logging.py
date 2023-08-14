@@ -19,5 +19,6 @@ import termcolor
 def logger(analysis_name: str):
   def log(message: str, *, color: str = "blue") -> str:
     sys.stdout.write(termcolor.colored(analysis_name, color, attrs=["bold"]))
-    sys.stdout.write(termcolor.colored(f': {message}\n', attrs=["bold"]))
+    sys.stdout.write(termcolor.colored(f": {message}\n", attrs=["bold"]))
+
   return log

@@ -110,8 +110,6 @@ nicknames = {
 }
 
 
-
-
 class UniqueIdForKey:
 
   def __init__(self):
@@ -133,6 +131,7 @@ class UniqueIdForKey:
 
 
 class FreshVariableId:
+
   def __init__(self):
     self.id_to_value = list()
 
@@ -146,6 +145,7 @@ class FreshVariableId:
   def num_ids(self):
     return len(self.id_to_value)
 
+
 def is_shape_value(value):
   return is_shape(value["abs"])
 
@@ -155,6 +155,7 @@ def is_shape(s):
 
 
 class TemplateInstance:
+
   def __init__(self, template, vars):
     self.template = template
     self.vars = vars
@@ -165,7 +166,9 @@ class TemplateInstance:
   def __repr__(self):
     return f"{self.template.repr(self.vars)}"
 
+
 class Template:
+
   def __init__(self, name, n_vars, predicate, repr):
     self.name = name
     self.n_vars = n_vars
@@ -175,20 +178,42 @@ class Template:
   def get_instance(self, vars):
     return TemplateInstance(self, vars)
 
-identity_template = Template("identity", 1, lambda state, vars: True, lambda vars: vars[0])
+
+identity_template = Template(
+    "identity", 1, lambda state, vars: True, lambda vars: vars[0]
+)
 templates = [
-    Template("=", 2, lambda state, vars: state.get(vars[0], 0) == state.get(vars[1]), lambda vars: vars[0]),
-    Template("*", 3, lambda state, vars: False if state.get(vars[1], 0) == 1 or state.get(vars[2], 0) == 1 else state.get(vars[0], 0) == state.get(vars[1], 0) * state.get(vars[2], 0),
-             lambda vars: f"{vars[0]}*{vars[1]}"),
+    Template(
+        "=",
+        2,
+        lambda state, vars: state.get(vars[0], 0) == state.get(vars[1]),
+        lambda vars: vars[0],
+    ),
+    Template(
+        "*",
+        3,
+        lambda state, vars: False
+        if state.get(vars[1], 0) == 1 or state.get(vars[2], 0) == 1
+        else state.get(vars[0], 0)
+        == state.get(vars[1], 0) * state.get(vars[2], 0),
+        lambda vars: f"{vars[0]}*{vars[1]}",
+    ),
 ]
 
+
 def find_solution(states, location_id_to_type_and_values, n_symbols):
-  solution = [TemplateInstance(identity_template, [i]) for i in range(n_symbols)]
+  solution = [
+      TemplateInstance(identity_template, [i]) for i in range(n_symbols)
+  ]
   for location_id, state_list in states.items():
     exclude = location_id_to_type_and_values[location_id].get_type()
     for template in templates:
       for var in exclude:
-        vars_list = [i for i in range(n_symbols) if i != var and solution[i].get_name() == "identity"]
+        vars_list = [
+            i
+            for i in range(n_symbols)
+            if i != var and solution[i].get_name() == "identity"
+        ]
         vars_iter = itertools.combinations(vars_list, template.n_vars - 1)
         for vars in vars_iter:
           vars = [var] + list(vars)
@@ -224,7 +249,9 @@ def get_equivalence_classes(solution):
         if s is not None and rhs in s:
           rhs_index = j
       if lhs_index != rhs_index:
-        lhs_index, rhs_index = min(lhs_index, rhs_index),  max(lhs_index, rhs_index)
+        lhs_index, rhs_index = min(lhs_index, rhs_index), max(
+            lhs_index, rhs_index
+        )
         equivalence_classes[lhs_index].update(equivalence_classes[rhs_index])
         equivalence_classes[rhs_index] = None
   return equivalence_classes
@@ -247,11 +274,13 @@ def get_var_to_name(equivalence_classes, name_space):
           var_to_name[e] = f"d{min_e}"
   return var_to_name
 
+
 def replace_id_with_names(solution, name_space):
   equivalence_classes = get_equivalence_classes(solution)
   var_to_name = get_var_to_name(equivalence_classes, name_space)
   for i, v in enumerate(solution):
     v.vars = [var_to_name[i] for i in v.vars]
+
 
 def get_name(opcode, name):
   if isinstance(name, str) and name:
@@ -263,7 +292,9 @@ def get_name(opcode, name):
 def count_leading_spaces(s: str) -> int:
   return len(s) - len(s.lstrip(" "))
 
+
 class TypeConstructor:
+
   def __init__(self, name):
     self.name = name
     self.children = []
@@ -272,7 +303,7 @@ class TypeConstructor:
     self.children.extend(children)
 
   def __repr__(self):
-    if len(self.children)==0:
+    if len(self.children) == 0:
       return f"T:{self.name}"
     else:
       return f"T:{self.name}[{', '.join([repr(c) for c in self.children])}]"
@@ -303,6 +334,7 @@ def abstraction(obj):
     ignore = False
   return ignore, get_type(obj)
 
+
 def get_type(obj):
   if isinstance(obj, list):
     ret = TypeConstructor("list")
@@ -312,7 +344,9 @@ def get_type(obj):
     ret.add_children([get_type(o) for o in obj])
   elif isinstance(obj, dict):
     ret = TypeConstructor("dict")
-    ret.add_children([[get_type(o) for o in obj.keys()], [get_type(o) for o in obj.values()]])
+    ret.add_children(
+        [[get_type(o) for o in obj.keys()], [get_type(o) for o in obj.values()]]
+    )
   elif isinstance(obj, set):
     ret = TypeConstructor("set")
     ret.add_children([get_type(o) for o in obj])
@@ -332,6 +366,7 @@ def get_type(obj):
     ret = TypeConstructor(str(type(obj)).split("'")[1])
   return ret
 
+
 def get_location_ids_in_method(method_id, method_id_to_location_ids):
   if method_id not in method_id_to_location_ids:
     method_id_to_location_ids[method_id] = set()
@@ -344,6 +379,7 @@ def get_symbolic_type(value, vars, location_id):
   for _ in abs:
     symbolic_shape_type.append(vars.get_fresh_id(location_id))
   return symbolic_shape_type
+
 
 def get_state_update(symbolic_type, value):
   state_update = dict(zip(symbolic_type, value["abs"]))
@@ -374,6 +410,7 @@ class TypeAndValues:
   def __repr__(self):
     return f"(type : {self.type}, values: {self.values})"
 
+
 def create_states(record_list):
   states = dict()
   location_id_to_type_and_values = dict()
@@ -392,13 +429,21 @@ def create_states(record_list):
       name = str(row["function_name"]) + "()"
     name = get_name(row["type"], name)
 
-    if row["type"].startswith("RETURN_") and not record_list[i-1]["type"].startswith("CALL_"):
+    if row["type"].startswith("RETURN_") and not record_list[i - 1][
+        "type"
+    ].startswith("CALL_"):
       state = state_stack.pop()
-    if not row["type"].startswith("RETURN_") and record_list[i-1]["type"].startswith("CALL_"):
+    if not row["type"].startswith("RETURN_") and record_list[i - 1][
+        "type"
+    ].startswith("CALL_"):
       method_id = row["method_id"]
       state_stack.append(state)
-      location_ids_in_method = get_location_ids_in_method(method_id, method_id_to_location_ids)
-      state = {key: state[key] for key in state if key not in location_ids_in_method}
+      location_ids_in_method = get_location_ids_in_method(
+          method_id, method_id_to_location_ids
+      )
+      state = {
+          key: state[key] for key in state if key not in location_ids_in_method
+      }
     value = row["result_and_args"][0]
     if isinstance(value["abs"], TypeConstructor):
       location = tuple([name] + [row[x] for x in keys])
@@ -410,7 +455,9 @@ def create_states(record_list):
       else:
         location_id_to_type_and_values[location_id].add_value(value)
       method_id = row["method_id"]
-      location_ids_in_method = get_location_ids_in_method(method_id, method_id_to_location_ids)
+      location_ids_in_method = get_location_ids_in_method(
+          method_id, method_id_to_location_ids
+      )
       location_ids_in_method.add(location_id)
 
       value = location_id_to_type_and_values[location_id].get_last_value()
@@ -418,7 +465,12 @@ def create_states(record_list):
       if location_id not in states:
         states[location_id] = list()
       states[location_id].append(dict(state))
-  return states, location_id_to_type_and_values, location_to_id, method_id_to_location_ids
+  return (
+      states,
+      location_id_to_type_and_values,
+      location_to_id,
+      method_id_to_location_ids,
+  )
 
 
 def process_event(record):
@@ -436,7 +488,9 @@ def process_termination():
   log(f"Saving raw data to {log_file}.")
   pd.DataFrame.to_csv(df, log_file)
 
-  states, location_id_to_type_and_values, location_to_id, method_id_to_types = create_states(record_list)
+  states, location_id_to_type_and_values, location_to_id, method_id_to_types = (
+      create_states(record_list)
+  )
   for location_id, state in states.items():
     print(f"{location_id}{location_to_id.get_key(location_id)}: {state}")
 
@@ -454,6 +508,7 @@ def process_termination():
   #   symbolic_type = type_and_values.get_type()
   #   if all(map(lambda x: solution[x].get_name() != "identity", symbolic_type)):
   #     print(f"{location_id}{location_to_id.get_key(location_id)} : {[solution[x] for x in type_and_values.get_type()]}")
+
 
 #   process_names()
 #   solution = find_solution(np_data, n_symbols, change_mask)
@@ -566,15 +621,27 @@ def process_termination():
 
 
 observed_hyper_parameters = set()
+
+
 def annotate_shape(shape_or_int, dim_names):
-  for i in range(len(record_list)-1, -1, -1):
+  for i in range(len(record_list) - 1, -1, -1):
     if record_list[i]["type"].startswith("CALL_"):
       record = dict(record_list[i])
       record["type"] = "LOAD_NAME"
-      record["special"] = (dim_names,) if isinstance(dim_names, str) else dim_names
-      record["result_and_args"] = [{"id": 0, "abs": (shape_or_int,) if isinstance(shape_or_int, int) else shape_or_int.shape}]
+      record["special"] = (
+          (dim_names,) if isinstance(dim_names, str) else dim_names
+      )
+      record["result_and_args"] = [{
+          "id": 0,
+          "abs": (
+              (shape_or_int,)
+              if isinstance(shape_or_int, int)
+              else shape_or_int.shape
+          ),
+      }]
       record_list.append(record)
       break
+
 
 def hyper_parameter(dim_int, dim_name):
   while dim_int in observed_hyper_parameters:

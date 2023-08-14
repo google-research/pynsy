@@ -32,11 +32,13 @@ from pynsy.demos import datasets
 def create_param(m, n, scale, rng):
   return (scale * rng.randn(m, n), scale * rng.randn(n))
 
+
 def init_random_params(scale, layer_sizes, rng=npr.RandomState(0)):
   return [
       create_param(m, n, scale, rng)
       for m, n, in zip(layer_sizes[:-1], layer_sizes[1:])
   ]
+
 
 def apply_layer(activations, w, b):
   outputs = jnp.dot(activations, w) + b
@@ -48,7 +50,7 @@ def predict(params, inputs):
   activations = inputs
   shaper.annotate_shape(inputs, ("batch", "size"))
   for w, b in params[:-1]:
-    activations =  apply_layer(activations, w, b)
+    activations = apply_layer(activations, w, b)
 
   final_w, final_b = params[-1]
   logits = jnp.dot(activations, final_w) + final_b
@@ -109,7 +111,7 @@ def main():
     epoch_time = time.time() - start_time
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
   main()
   # train_acc = accuracy(params, (train_images, train_labels))
   # test_acc = accuracy(params, (test_images, test_labels))

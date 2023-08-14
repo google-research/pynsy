@@ -78,6 +78,7 @@ class PriorityQueue:
 
 
 class Graph:
+
   def __init__(self, num):
     self.adjList = {}  # To store graph: u -> (v,w)
     self.num_nodes = num  # Number of nodes in graph
@@ -185,6 +186,7 @@ def main():
   graph.show_graph()
   graph.dijkstra(0)
   graph.show_path(0, 4)
+
 
 if __name__ == "__main__":
   main()
