@@ -16,19 +16,18 @@ import dataclasses
 from datetime import datetime
 import io
 import itertools
-import logging
 from typing import Any
 
-import numpy as np
 import pandas as pd
-import termcolor
 
 from pynsy.analyses import util
-from pynsy.instrumentation import logging
+from pynsy.instrumentation import logging_utils
 from pynsy.instrumentation import util as instrumentation_util
 
 ObjectId = instrumentation_util.ObjectId
-log = logging.logger(__name__)
+
+log = logging_utils.logger(__name__)
+styled = logging_utils.styled
 
 record_list = []
 
@@ -55,9 +54,7 @@ class Annotation:
   symbolic_shape: Any
   concrete_shape: Any
 
-  def to_string(
-      self, indent: int = 0, *, short: bool = True, color: bool = True
-  ) -> str:
+  def to_string(self, indent: int = 0, *, color: bool = True) -> str:
     out = io.StringIO()
     out.write(" " * indent)
     name = get_name(self.opcode, self.name)
@@ -65,7 +62,7 @@ class Annotation:
     out.write(msg)
     s = out.getvalue()
     if color:
-      s = termcolor.colored(s, color="magenta", attrs=["bold"])
+      s = styled(s, style="bold magenta")
     return s
 
 

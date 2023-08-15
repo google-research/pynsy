@@ -17,20 +17,21 @@ import dataclasses
 from datetime import datetime
 import io
 import itertools
-import logging
 from typing import Any
 
-import numpy as np
 import pandas as pd
-import termcolor
+from rich.text import Text
 
 from pynsy.analyses import util
-from pynsy.instrumentation import logging
+from pynsy.instrumentation import logging_utils
 from pynsy.instrumentation import module_loader
 from pynsy.instrumentation import util as instrumentation_util
 
 ObjectId = instrumentation_util.ObjectId
-log = logging.logger(__name__)
+
+log = logging_utils.logger(__name__)
+print_panel = logging_utils.print_panel
+styled = logging_utils.styled
 
 record_list = []
 
@@ -57,18 +58,16 @@ class Annotation:
   symbolic_shape: Any
   concrete_shape: Any
 
-  def to_string(
-      self, indent: int = 0, *, short: bool = True, color: bool = True
-  ) -> str:
+  def to_string(self, indent: int = 0, *, color: bool = True) -> str:
     out = io.StringIO()
     out.write(" " * indent)
     name = get_name(self.opcode, self.name)
     concrete_shape_str = " ".join(str(x) for x in self.concrete_shape)
-    msg = f"# {name}: {self.symbolic_shape} • {concrete_shape_str}"
+    msg = f"# ↳ {name}: {self.symbolic_shape} · {concrete_shape_str}"
     out.write(msg)
     s = out.getvalue()
     if color:
-      s = termcolor.colored(s, color="magenta", attrs=["bold"])
+      s = styled(s, style="bold magenta")
     return s
 
 
@@ -472,22 +471,8 @@ def process_termination():
           f" {[solution[x] for x in type_and_values.type]}"
       )
 
-  #   process_names()
-  #   solution = find_solution(np_data, n_symbols, change_mask)
-  #   for i, v in enumerate(solution):
-  #     if i in name_space:
-  #       if isinstance(v, tuple):
-  #         assert len(v[0]) == 1
-  #         name_space[v[1][0]] = name_space[i]
-  #   solution = str_solution(solution)
-  #   if verbose:
-  #     log("Printing solution...")
-  #     for d, e in enumerate(solution):
-  #       print(f"d{d} -> {e}")
-  #
-
-  annotations_by_line_by_module = collections.defaultdict(
-      lambda: collections.defaultdict(list)
+  annotations_by_line_by_module: dict[str, dict[int, Annotation]] = (
+      collections.defaultdict(lambda: collections.defaultdict(list))
   )
   for location_id, type_and_values in location_id_to_type_and_values.items():
     name, module_name, method_id, instruction_id, line_number, opcode = (
@@ -495,10 +480,6 @@ def process_termination():
     )
     del method_id, instruction_id
     line_number = int(line_number)
-
-    # symbolic_shape, concrete_values = v
-    # symbolic_shape = [solution[d.val] for d in symbolic_shape]
-    # concrete_shapes = concrete_values
 
     symbolic_type = type_and_values.type
     symbolic_shape = [solution[x] for x in type_and_values.type]
@@ -550,19 +531,17 @@ def process_termination():
       indent = count_leading_spaces(annotated_line)
       annotations = annotations_by_line[line_number]
       for annotation in annotations:
-        s = annotation.to_string(indent=indent)
+        s = annotation.to_string(indent=indent, color=True)
         annotated_lines.append(s)
 
     end_index = transform_line_number(last_line_number)
     annotated_lines.extend(module_lines[end_index:])
-
-    if verbose:
-      log(f"Shape annotations for: {module_name}")
-      print(termcolor.colored("=" * 80, attrs=["bold"]))
-      for line in annotated_lines:
-        print(line)
-      print(termcolor.colored("=" * 80, attrs=["bold"]))
     annotated_source = "\n".join(annotated_lines)
+    if verbose:
+      annotated_text = Text(annotated_source)
+      annotated_text.highlight_regex(r"\s*# ↳.+", style="bold magenta")
+      print_panel(annotated_text, title=f"Shape annotations: [b]{module_name}")
+
     annotations_file = util.get_output_path(
         "shape_analysis", f"annotations/{module_name}.py"
     )

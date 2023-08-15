@@ -14,9 +14,9 @@
 
 import pandas as pd
 from pynsy.analyses import util
-from pynsy.instrumentation import logging
+from pynsy.instrumentation import logging_utils
 
-log = logging.logger(__name__)
+log = logging_utils.logger(__name__)
 
 record_list = []
 

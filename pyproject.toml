@@ -23,9 +23,8 @@ dependencies = [
     "jaxlib",
     "numpy>=1.22",
     "pandas",
-    "termcolor",
+    "rich",
     "toml",
-    "typing_extensions",
 ]
 
 # `version` is automatically set by flit to use `my_project.__version__`

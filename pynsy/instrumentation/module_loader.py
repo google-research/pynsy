@@ -28,10 +28,10 @@ from typing import Union
 import toml
 
 from pynsy.instrumentation import instrument_nested
-from pynsy.instrumentation import logging
+from pynsy.instrumentation import logging_utils
 from pynsy.instrumentation import operator_apply
 
-log = logging.logger(__name__)
+log = logging_utils.logger(__name__)
 
 handle = operator_apply.handle
 OperatorApply = operator_apply.OperatorApply
