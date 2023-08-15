@@ -441,7 +441,7 @@ def process_termination():
     return
 
   df = pd.DataFrame(record_list)
-  log_file = util.get_output_path("shape_analysis", "trace.csv")
+  log_file = util.get_output_path("shape_inference", "trace.csv")
   log(f"Saving raw data to {log_file}.")
   pd.DataFrame.to_csv(df, log_file)
 
@@ -543,7 +543,7 @@ def process_termination():
       print_panel(annotated_text, title=f"Shape annotations: [b]{module_name}")
 
     annotations_file = util.get_output_path(
-        "shape_analysis", f"annotations/{module_name}.py"
+        "shape_inference", f"annotations/{module_name}.py"
     )
     log(f"Saving annotated source file: {annotations_file}.")
     with open(annotations_file, "w") as out:
@@ -551,7 +551,7 @@ def process_termination():
       out.write(f"# Original file: {module_path}\n\n")
       out.write(annotated_source)
 
-  annotations_file = util.get_output_path("shape_analysis", "annotations.txt")
+  annotations_file = util.get_output_path("shape_inference", "annotations.txt")
   with open(annotations_file, "w") as out:
     log(f"Saving annotations to {annotations_file}.")
     for (

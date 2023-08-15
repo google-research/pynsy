@@ -1,6 +1,6 @@
 {
   "analyzers": [
-    "pynsy.analyses.shape_analysis"
+    "pynsy.analyses.shape_inference"
   ],
   "instrumentation_rules": {
     "include": [
