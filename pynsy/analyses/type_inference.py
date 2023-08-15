@@ -143,60 +143,6 @@ class FreshVariableId:
     return len(self.id_to_value)
 
 
-def is_shape_value(value):
-  return is_shape(value["abs"])
-
-
-def is_shape(s):
-  return isinstance(s, list) or isinstance(s, tuple)
-
-
-class TemplateInstance:
-
-  def __init__(self, template, vars):
-    self.template = template
-    self.vars = vars
-
-  def get_name(self):
-    return self.template.name
-
-  def __repr__(self):
-    return f"{self.template.repr(self.vars)}"
-
-
-class Template:
-
-  def __init__(self, name, n_vars, predicate, repr):
-    self.name = name
-    self.n_vars = n_vars
-    self.predicate = predicate
-    self.repr = repr
-
-  def get_instance(self, vars):
-    return TemplateInstance(self, vars)
-
-
-identity_template = Template(
-    "identity", 1, lambda state, vars: True, lambda vars: vars[0]
-)
-templates = [
-    Template(
-        "=",
-        2,
-        lambda state, vars: state.get(vars[0], 0) == state.get(vars[1]),
-        lambda vars: vars[0],
-    ),
-    Template(
-        "*",
-        3,
-        lambda state, vars: False
-        if state.get(vars[1], 0) == 1 or state.get(vars[2], 0) == 1
-        else state.get(vars[0], 0)
-        == state.get(vars[1], 0) * state.get(vars[2], 0),
-        lambda vars: f"{vars[0]}*{vars[1]}",
-    ),
-]
-
 
 def find_solution(states, location_id_to_type_and_values, n_symbols):
   solution = [
@@ -294,6 +240,7 @@ class TypeConstructor:
 
   def __init__(self, name):
     self.name = name
+    self.symbolic_id = None
     self.children = []
 
   def add_children(self, children):
@@ -304,6 +251,68 @@ class TypeConstructor:
       return f"T:{self.name}"
     else:
       return f"T:{self.name}[{', '.join([repr(c) for c in self.children])}]"
+
+  def __eq__(self, other):
+    if self.name != other.name:
+      return False
+    if len(self.children) != len(other.children):
+      return False
+    for c1, c2 in zip(self.children, other.children):
+      if c1 != c2:
+        return False
+    return True
+
+  def find_common_subtree(self, other):
+    if self.name == "Any":
+      return self
+    elif self.name == other.name:
+      if len(self.children) == len(other.children):
+        if len(self.children) == 0:
+          return self
+        else:
+          ret = TypeConstructor(self.name)
+          for c1, c2 in zip(self.children, other.children):
+            ret.add_children([c1.find_common_subtree(c2)])
+          return ret
+      else:
+        return TypeConstructor("Any")
+    else:
+      return TypeConstructor("Any")
+
+  def assign_symbolic_vars(self, symbolic_type, location_id, fresh_variable_generator):
+    if self.name == "Any":
+      self.symbolic_id = fresh_variable_generator.get_fresh_id(location_id)
+      symbolic_type.append(self.symbolic_id)
+      return
+    else:
+      for c1 in self.children:
+        c1.assign_symbolic_vars(symbolic_type, location_id, fresh_variable_generator)
+
+  def extract_values_for_Any(self, type_value):
+    if self.name == "Any":
+      return [type_value]
+    else:
+      ret = []
+      for c1 in self.children:
+        ret.extend(self.extract_values_for_Any(c1))
+      return ret
+
+def assign_symbolic_types(type_and_values, location_id):
+  fresh_variable_generator = FreshVariableId()
+  values = type_and_values.get_values()
+  common_subtree = None
+  if len(values) > 1:
+    common_subtree = values[0].findd_common_subtree(values[1])
+  for value in values[2:]:
+    common_subtree = common_subtree.find_common_subtree(value)
+  if common_subtree is not None:
+    symbolic_type = []
+    common_subtree.assign_symbolic_vars(symbolic_type, location_id, fresh_variable_generator)
+    type_and_values.set_type(symbolic_type)
+    type_and_values.set_common(common_subtree)
+    type_values = type_and_values.get_values()
+    for i, type_value in enumerate(type_values):
+      type_values[i] = common_subtree.extract_values_for_Any(type_value)
 
 
 def abstraction(obj):
@@ -330,6 +339,8 @@ def abstraction(obj):
   else:
     ignore = False
   return ignore, get_type(obj)
+
+
 
 
 def get_type(obj):
@@ -387,10 +398,17 @@ class TypeAndValues:
 
   def __init__(self):
     self.type = None
+    self.common = None
     self.values = []
 
   def add_value(self, value):
     self.values.append(value)
+
+  def set_common(self, common):
+    self.common = common
+
+  def get_common(self):
+    return self.common
 
   def get_type(self):
     return self.type
