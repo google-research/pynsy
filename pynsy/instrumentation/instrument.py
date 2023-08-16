@@ -116,8 +116,9 @@ pre_instrumented_ops = {
     "POP_JUMP_IF_FALSE": 1,
     "ROT_TWO": 2,
     "CALL_FUNCTION": -1,
+    "LOAD_METHOD": 1,
     "CALL_METHOD": -1,
-    "CALL_FUNCTION_KW": -1,
+    "CALL_FUNCTION_KW": -2,
     "RETURN_VALUE": 1,
 }
 
@@ -245,7 +246,7 @@ def emit_instrument(
 
 def get_args_num(n_operands: int, input: Instr) -> int:
   if n_operands < 0:
-    return cast(int, input.arg) + 1
+    return cast(int, input.arg) - n_operands
   else:
     return n_operands
 

@@ -56,6 +56,7 @@ def retrieve_record_element(record, i):
   record["result_and_args"] = value_vector
   return record
 
+debug_i = 0
 
 class OperatorApply:
   loop_stack: List[Any]
@@ -75,6 +76,7 @@ class OperatorApply:
     self.cell_to_frame = {}
     self.exec_len_key = "exec_len"
     self.novalue = {"id": -1, "abs": None}
+    self.loaded_method = None
     super().__init__()
 
   def get_wrapped_repr(self, obj):
@@ -213,13 +215,21 @@ class OperatorApply:
               },
               opcode,
           )
+      elif opname[opcode] == "LOAD_METHOD":
+        if hasattr(stack[0], instr.arg):
+          self.loaded_method = getattr(stack[0], instr.arg)
+        else:
+          self.loaded_method = None
       elif opname[opcode] == "CALL_METHOD":
         if not is_post:
-          self.function_call_stack.append(stack[0])
+          if str(type(self.loaded_method)).startswith("<function"):
+            stack.insert(0, self.loaded_method)
+            object_id_stack = self.convert_stack_to_heap_id(stack)
+          self.function_call_stack.append(self.loaded_method)
           self.function_name_stack.append(
-              stack[0].__name__
-              if hasattr(stack[0], "__name__")
-              else type(stack[0])
+              self.loaded_method.__name__
+              if hasattr(self.loaded_method, "__name__")
+              else type(self.loaded_method)
           )
           function_name = self.function_name_stack[-1]
           self.call_process_event_on_record(
