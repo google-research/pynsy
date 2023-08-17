@@ -27,8 +27,6 @@ from pynsy.instrumentation import logging_utils
 from pynsy.instrumentation import module_loader
 from pynsy.instrumentation import util as instrumentation_util
 
-ObjectId = instrumentation_util.ObjectId
-
 log = logging_utils.logger(__name__)
 print_panel = logging_utils.print_panel
 styled = logging_utils.styled
@@ -148,13 +146,6 @@ class FreshTypeId:
     return len(self.type_id_to_value)
 
 
-def is_shape_value(value):
-  return is_shape(value["abs"])
-
-
-def is_shape(s):
-  return isinstance(s, list) or isinstance(s, tuple)
-
 
 class TemplateInstance:
 
@@ -163,7 +154,10 @@ class TemplateInstance:
     self.vars = vars
 
   def get_name(self):
-    return self.template.name
+    return self.template.get_name()
+
+  def get_template(self):
+    return self.template
 
   def __repr__(self):
     return f"{self.template.repr(self.vars)}"
@@ -177,55 +171,112 @@ class Template:
     self.predicate = predicate
     self.repr = repr
 
+  def get_name(self):
+    return self.name
+
   def get_instance(self, vars):
     return TemplateInstance(self, vars)
 
 
-identity_template = Template(
-    "identity", 1, lambda state, vars: True, lambda vars: vars[0]
-)
-templates = [
-    Template(
-        "=",
-        2,
-        lambda state, vars: state.get(vars[0], 0) == state.get(vars[1]),
-        lambda vars: vars[0],
-    ),
-    Template(
-        "*",
-        3,
-        lambda state, vars: False
-        if state.get(vars[1], 0) == 1 or state.get(vars[2], 0) == 1
-        else state.get(vars[0], 0)
-        == state.get(vars[1], 0) * state.get(vars[2], 0),
-        lambda vars: f"{vars[0]}*{vars[1]}",
-    ),
-]
 
 
+class TensorShapeInferenceUtils:
+  def __init__(self):
+    self.templates = [
+        Template(
+            "=",
+            2,
+            lambda state, vars: state.get(vars[0], 0) == state.get(vars[1]),
+            lambda vars: vars[0],
+        ),
+        Template(
+            "*",
+            3,
+            lambda state, vars: False
+            if state.get(vars[1], 0) == 1 or state.get(vars[2], 0) == 1
+            else state.get(vars[0], 0)
+                 == state.get(vars[1], 0) * state.get(vars[2], 0),
+            lambda vars: f"{vars[0]}*{vars[1]}",
+        ),
+    ]
 
-def get_var_to_name(equivalence_classes, name_space):
-  var_to_name = dict()
-  for i, s in enumerate(equivalence_classes):
-    done = False
-    if s is not None:
-      for n in name_space:
-        if n in s:
-          done = True
+
+  def is_type_value(self, value):
+    return self.is_shape(value["abs"])
+
+  def is_shape(self, s):
+    return isinstance(s, list) or isinstance(s, tuple)
+
+  def get_var_to_name(self, equivalence_classes, name_space):
+    var_to_name = dict()
+    for i, s in enumerate(equivalence_classes):
+      done = False
+      if s is not None:
+        for n in name_space:
+          if n in s:
+            done = True
+            for e in s:
+              var_to_name[e] = name_space[n]
+            break
+        if not done:
+          min_e = min(s)
           for e in s:
-            var_to_name[e] = name_space[n]
-          break
-      if not done:
-        min_e = min(s)
-        for e in s:
-          var_to_name[e] = f"d{min_e}"
-  return var_to_name
+            var_to_name[e] = f"d{min_e}"
+    return var_to_name
 
 
-def replace_type_ids_with_names(solution, equivalence_classes, name_space):
-  var_to_name = get_var_to_name(equivalence_classes, name_space)
-  for i, v in enumerate(solution):
-    v.vars = [var_to_name[i] for i in v.vars]
+  def replace_type_ids_with_names(self, solution, type_id_to_annotation):
+    equivalence_classes = self.get_equivalence_classes(solution)
+    var_to_name = self.get_var_to_name(equivalence_classes, type_id_to_annotation)
+    for i, v in enumerate(solution):
+      v.vars = [var_to_name[i] for i in v.vars]
+
+  def get_type_ids(self, abs, vars, location_id):
+    type_ids = []
+    for _ in abs:
+      type_ids.append(vars.get_fresh_id(location_id))
+    return type_ids
+
+  def get_state_update(self, symbolic_type, value):
+    state_update = dict(zip(symbolic_type, value["abs"]))
+    return state_update
+
+  def set_annotation(self, row, type_ids, type_id_to_annotation):
+    if "special" in row:
+      names = row["special"]
+      for type_id, name in zip(type_ids, names):
+        type_id_to_annotation[type_id] = name
+
+  def set_type_ids(self, location_id_to_type_and_values, fresh_vars, global_state):
+    for location_id, type_and_values in location_id_to_type_and_values.items():
+      value = next(iter(type_and_values.abstraction_set))
+      type_and_values.type_ids = self.get_type_ids(value, fresh_vars, location_id)
+      if len(type_and_values.abstraction_set) == 1:
+        global_state.update(zip(type_and_values.type_ids, value))
+    return fresh_vars, global_state
+
+  def get_equivalence_classes(self, solution):
+    equivalence_classes = [{i} for i in range(len(solution))]
+    for i, template_instance in enumerate(solution):
+      if template_instance.get_name() == "=":
+        lhs = i
+        rhs = template_instance.vars[0]
+        lhs_index = None
+        rhs_index = None
+        for j, s in enumerate(equivalence_classes):
+          if s is not None and lhs in s:
+            lhs_index = j
+          if s is not None and rhs in s:
+            rhs_index = j
+        if lhs_index != rhs_index:
+          lhs_index, rhs_index = min(lhs_index, rhs_index), max(
+              lhs_index, rhs_index
+          )
+          equivalence_classes[lhs_index].update(equivalence_classes[rhs_index])
+          equivalence_classes[rhs_index] = None
+    return equivalence_classes
+
+
 
 
 def get_name(opcode, name):
@@ -250,30 +301,6 @@ def abstraction(obj):
 
 
 
-def get_type_ids(abs, vars, location_id):
-  type_ids = []
-  for _ in abs:
-    type_ids.append(vars.get_fresh_id(location_id))
-  return type_ids
-
-def get_state_update(symbolic_type, value):
-  state_update = dict(zip(symbolic_type, value["abs"]))
-  return state_update
-
-def set_annotation(row, type_ids, type_id_to_annotation):
-  if "special" in row:
-    names = row["special"]
-    for type_id, name in zip(type_ids, names):
-      type_id_to_annotation[type_id] = name
-
-def set_type_ids(location_id_to_type_and_values, fresh_vars, global_state):
-  for location_id, type_and_values in location_id_to_type_and_values.items():
-    value = next(iter(type_and_values.abstraction_set))
-    type_and_values.type_ids = get_type_ids(value, fresh_vars, location_id)
-    if len(type_and_values.abstraction_set) == 1:
-      global_state.update(zip(type_and_values.type_ids, value))
-  return fresh_vars, global_state
-
 
 @dataclasses.dataclass
 class TypeIdsAndValues:
@@ -297,7 +324,7 @@ class TypeIdsAndValues:
 
 class TypeInference:
 
-  def __init__(self):
+  def __init__(self, type_utils):
     self.location_id_to_state_list = dict()
     self.location_id_to_type_ids_and_values = dict()
     self.location_to_id = UniqueIdForKey()
@@ -306,6 +333,10 @@ class TypeInference:
     self.fresh_vars = FreshTypeId()
     self.global_state = dict()
     self.method_id_to_type_ids = dict()
+    self.identity_template = Template(
+        "identity", 1, lambda state, vars: True, lambda vars: vars[0]
+    )
+    self.type_utils: TensorShapeInferenceUtils = type_utils
 
   def get_data(self):
     return (
@@ -330,7 +361,7 @@ class TypeInference:
     for i in range(rlen):
       row = record_list[i]
       value = row["result_and_args"][0]
-      if is_shape_value(value):
+      if self.type_utils.is_type_value(value):
         location = tuple([row[x] for x in keys])
         location_id = self.location_to_id.get_id(location)
         if location_id not in self.location_id_to_type_ids_and_values:
@@ -339,7 +370,7 @@ class TypeInference:
           self.location_id_to_type_ids_and_values[location_id] = type_and_values
         else:
           self.location_id_to_type_ids_and_values[location_id].add_to_abstraction_set(value["abs"])
-    set_type_ids(self.location_id_to_type_ids_and_values, self.fresh_vars, self.global_state)
+    self.type_utils.set_type_ids(self.location_id_to_type_ids_and_values, self.fresh_vars, self.global_state)
 
 
   def create_states(self, record_list):
@@ -368,7 +399,7 @@ class TypeInference:
         type_ids_in_method = self.get_type_ids_in_method(method_id)
         state = {key: state[key] for key in state if key not in type_ids_in_method}
       value = row["result_and_args"][0]
-      if is_shape_value(value):
+      if self.type_utils.is_type_value(value):
         location = tuple([row[x] for x in keys])
         location_id = self.location_to_id.get_id(location)
         self.location_id_to_name[location_id] = name
@@ -379,10 +410,10 @@ class TypeInference:
         type_ids_in_method = self.get_type_ids_in_method(method_id)
         type_ids_in_method.update(type_ids)
 
-        set_annotation(row, type_ids, self.type_id_to_annotation)
+        self.type_utils.set_annotation(row, type_ids, self.type_id_to_annotation)
 
         value = self.location_id_to_type_ids_and_values[location_id].get_last_value()
-        state_update = get_state_update(type_ids, value)
+        state_update = self.type_utils.get_state_update(type_ids, value)
         state.update(state_update)
         if location_id not in self.location_id_to_state_list:
           self.location_id_to_state_list[location_id] = list()
@@ -391,16 +422,16 @@ class TypeInference:
   def find_solution(self):
     n_symbols = self.fresh_vars.num_ids()
     solution = [
-        TemplateInstance(identity_template, [i]) for i in range(n_symbols)
+        TemplateInstance(self.identity_template, [i]) for i in range(n_symbols)
     ]
     for location_id, state_list in self.location_id_to_state_list.items():
       exclude = self.location_id_to_type_ids_and_values[location_id].type_ids
-      for template in templates:
+      for template in self.type_utils.templates:
         for var in exclude:
           vars_list = [
               i
               for i in range(n_symbols)
-              if i != var and solution[i].get_name() == "identity"
+              if i != var and solution[i].get_template() == self.identity_template
           ]
           vars_iter = itertools.combinations(vars_list, template.n_vars - 1)
           for vars in vars_iter:
@@ -415,28 +446,15 @@ class TypeInference:
               break
     return solution
 
+  def print_solution(self, solution):
+    for location_id, type_and_values in self.location_id_to_type_ids_and_values.items():
+      if all(solution[x].get_template() != self.identity_template for x in type_and_values.type_ids):
+        print(
+            f"{location_id}{self.location_to_id.get_key(location_id)} :"
+            f" {[solution[x] for x in type_and_values.type_ids]}"
+        )
 
 
-  def get_equivalence_classes(self, solution):
-    equivalence_classes = [{i} for i in range(len(solution))]
-    for i, template_instance in enumerate(solution):
-      if template_instance.get_name() == "=":
-        lhs = i
-        rhs = template_instance.vars[0]
-        lhs_index = None
-        rhs_index = None
-        for j, s in enumerate(equivalence_classes):
-          if s is not None and lhs in s:
-            lhs_index = j
-          if s is not None and rhs in s:
-            rhs_index = j
-        if lhs_index != rhs_index:
-          lhs_index, rhs_index = min(lhs_index, rhs_index), max(
-              lhs_index, rhs_index
-          )
-          equivalence_classes[lhs_index].update(equivalence_classes[rhs_index])
-          equivalence_classes[rhs_index] = None
-    return equivalence_classes
 
 
 
@@ -455,7 +473,8 @@ def process_termination():
   log(f"Saving raw data to {log_file}.")
   pd.DataFrame.to_csv(df, log_file)
 
-  type_inference = TypeInference()
+  type_utils = TensorShapeInferenceUtils()
+  type_inference = TypeInference(type_utils)
   type_inference.create_type_ids_and_global_state(record_list)
   type_inference.create_states(record_list)
 
@@ -473,21 +492,9 @@ def process_termination():
   for k, v in location_id_to_type_ids_and_values.items():
     print(f"{k}{location_to_id.get_key(k)} : {v}")
   solution = type_inference.find_solution()
-  equivalence_classes = type_inference.get_equivalence_classes(solution)
-
   print(type_id_to_annotation)
-  replace_type_ids_with_names(solution, equivalence_classes, type_id_to_annotation)
-
-  # for i, v in enumerate(solution):
-  #   print(f"{i} : {v}")
-  #
-  for location_id, type_and_values in location_id_to_type_ids_and_values.items():
-    type_ids = type_and_values.type_ids
-    if all(solution[x].get_name() != "identity" for x in type_ids):
-      print(
-          f"{location_id}{location_to_id.get_key(location_id)} :"
-          f" {[solution[x] for x in type_and_values.type_ids]}"
-      )
+  type_utils.replace_type_ids_with_names(solution, type_id_to_annotation)
+  type_inference.print_solution(solution)
 
   annotations_by_line_by_module: dict[str, dict[int, list]] = (
       collections.defaultdict(lambda: collections.defaultdict(list))
