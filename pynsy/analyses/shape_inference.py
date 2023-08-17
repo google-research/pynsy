@@ -132,20 +132,20 @@ class UniqueIdForKey:
     return self.id_to_key[id] if id < len(self.id_to_key) else None
 
 
-class FreshVariableId:
+class FreshTypeId:
 
   def __init__(self):
-    self.id_to_value = list()
+    self.type_id_to_value = list()
 
   def get_fresh_id(self, value):
-    self.id_to_value.append(value)
-    return len(self.id_to_value) - 1
+    self.type_id_to_value.append(value)
+    return len(self.type_id_to_value) - 1
 
   def get_value(self, id):
-    return self.id_to_value[id]
+    return self.type_id_to_value[id]
 
   def num_ids(self):
-    return len(self.id_to_value)
+    return len(self.type_id_to_value)
 
 
 def is_shape_value(value):
@@ -203,12 +203,12 @@ templates = [
 ]
 
 
-def find_solution(states, global_state, location_id_to_type_and_values, n_symbols):
+def find_solution(location_id_to_state_list, global_state, location_id_to_type_and_values, n_symbols):
   solution = [
       TemplateInstance(identity_template, [i]) for i in range(n_symbols)
   ]
-  for location_id, state_list in states.items():
-    exclude = location_id_to_type_and_values[location_id].type
+  for location_id, state_list in location_id_to_state_list.items():
+    exclude = location_id_to_type_and_values[location_id].type_ids
     for template in templates:
       for var in exclude:
         vars_list = [
@@ -277,7 +277,7 @@ def get_var_to_name(equivalence_classes, name_space):
   return var_to_name
 
 
-def replace_id_with_names(solution, name_space):
+def replace_type_ids_with_names(solution, name_space):
   equivalence_classes = get_equivalence_classes(solution)
   var_to_name = get_var_to_name(equivalence_classes, name_space)
   for i, v in enumerate(solution):
@@ -304,17 +304,17 @@ def abstraction(obj):
   return True, None
 
 
-def get_types_in_method(method_id, method_id_to_dimensions):
+def get_type_ids_in_method(method_id, method_id_to_dimensions):
   if method_id not in method_id_to_dimensions:
     method_id_to_dimensions[method_id] = set()
   return method_id_to_dimensions[method_id]
 
 
-def get_symbolic_type(abs, vars, location_id):
-  symbolic_shape_type = []
+def get_type_ids(abs, vars, location_id):
+  type_ids = []
   for _ in abs:
-    symbolic_shape_type.append(vars.get_fresh_id(location_id))
-  return symbolic_shape_type
+    type_ids.append(vars.get_fresh_id(location_id))
+  return type_ids
 
 
 def get_state_update(symbolic_type, value):
@@ -323,16 +323,16 @@ def get_state_update(symbolic_type, value):
 
 
 @dataclasses.dataclass
-class TypeAndValues:
+class TypeIdsAndValues:
   values: list[Any]
 
   def __init__(self):
-    self.type = None
+    self.type_ids = None
     self.values = []
-    self.value_set = set()
+    self.abstraction_set = set()
 
-  def add_value_to_set(self, value):
-    self.value_set.add(value)
+  def add_to_abstraction_set(self, value):
+    self.abstraction_set.add(value)
 
   def add_value(self, value):
     self.values.append(value)
@@ -341,46 +341,25 @@ class TypeAndValues:
     return self.values[-1]
 
 
-# @dataclasses.dataclass
-# class TypeAndValues:
-
-#   def __init__(self, type):
-#     self.type = type
-#     self.values = []
-
-#   def add_value(self, value):
-#     self.values.append(value)
-
-#   def get_type(self):
-#     return self.type
-
-#   def get_values(self):
-#     return self.values
-
-#   def get_last_value(self):
-#     return self.values[-1]
-
-#   def __repr__(self):
-#     return f"(type : {self.type}, values: {self.values})"
-
-def set_symbolic_type_vars(location_id_to_type_and_values):
-  fresh_vars = FreshVariableId()
+def set_type_ids(location_id_to_type_and_values):
+  fresh_vars = FreshTypeId()
   global_state = dict()
   for location_id, type_and_values in location_id_to_type_and_values.items():
-    value = next(iter(type_and_values.value_set))
-    type_and_values.type = get_symbolic_type(value, fresh_vars, location_id)
-    if len(type_and_values.value_set) == 1:
-      global_state.update(zip(type_and_values.type, value))
+    value = next(iter(type_and_values.abstraction_set))
+    type_and_values.type_ids = get_type_ids(value, fresh_vars, location_id)
+    if len(type_and_values.abstraction_set) == 1:
+      global_state.update(zip(type_and_values.type_ids, value))
   return fresh_vars, global_state
 
+
 def create_states(record_list):
-  states = dict()
-  location_id_to_type_and_values = dict()
-  state_stack = []
-  method_id_to_types = dict()
+  location_id_to_state_list: dict[int, list] = dict()
+  location_id_to_type_ids_and_values: dict[int, TypeIdsAndValues] = dict()
+  state_stack: list[dict] = []
+  method_id_to_type_ids = dict()
   state = dict()
   location_to_id = UniqueIdForKey()
-  name_space = dict()
+  type_var_id_to_annotation = dict()
   location_id_to_name = dict()
 
   rlen = len(record_list)
@@ -390,13 +369,13 @@ def create_states(record_list):
     if is_shape_value(value):
       location = tuple([row[x] for x in keys])
       location_id = location_to_id.get_id(location)
-      if location_id not in location_id_to_type_and_values:
-        type_and_values = TypeAndValues()
-        type_and_values.add_value_to_set(value["abs"])
-        location_id_to_type_and_values[location_id] = type_and_values
+      if location_id not in location_id_to_type_ids_and_values:
+        type_and_values = TypeIdsAndValues()
+        type_and_values.add_to_abstraction_set(value["abs"])
+        location_id_to_type_ids_and_values[location_id] = type_and_values
       else:
-        location_id_to_type_and_values[location_id].add_value_to_set(value["abs"])
-  fresh_vars, global_state = set_symbolic_type_vars(location_id_to_type_and_values)
+        location_id_to_type_ids_and_values[location_id].add_to_abstraction_set(value["abs"])
+  fresh_vars, global_state = set_type_ids(location_id_to_type_ids_and_values)
 
 
   rlen = len(record_list)
@@ -418,39 +397,38 @@ def create_states(record_list):
     ].startswith("CALL_"):
       method_id = row["method_id"]
       state_stack.append(state)
-      types_in_method = get_types_in_method(method_id, method_id_to_types)
-      state = {key: state[key] for key in state if key not in types_in_method}
+      type_ids_in_method = get_type_ids_in_method(method_id, method_id_to_type_ids)
+      state = {key: state[key] for key in state if key not in type_ids_in_method}
     value = row["result_and_args"][0]
     if is_shape_value(value):
       location = tuple([row[x] for x in keys])
       location_id = location_to_id.get_id(location)
       location_id_to_name[location_id] = name
-      symbolic_type = location_id_to_type_and_values[location_id].type
-      location_id_to_type_and_values[location_id].add_value(value)
+      type_ids = location_id_to_type_ids_and_values[location_id].type_ids
+      location_id_to_type_ids_and_values[location_id].add_value(value)
 
       method_id = row["method_id"]
-      types_in_method = get_types_in_method(method_id, method_id_to_types)
-      types_in_method.update(symbolic_type)
+      type_ids_in_method = get_type_ids_in_method(method_id, method_id_to_type_ids)
+      type_ids_in_method.update(type_ids)
 
       if "special" in row:
         names = row["special"]
-        for dim, name in zip(symbolic_type, names):
-          name_space[dim] = name
+        for dim, name in zip(type_ids, names):
+          type_var_id_to_annotation[dim] = name
 
-      value = location_id_to_type_and_values[location_id].get_last_value()
-      state_update = get_state_update(symbolic_type, value)
+      value = location_id_to_type_ids_and_values[location_id].get_last_value()
+      state_update = get_state_update(type_ids, value)
       state.update(state_update)
-      if location_id not in states:
-        states[location_id] = list()
-      states[location_id].append(dict(state))
+      if location_id not in location_id_to_state_list:
+        location_id_to_state_list[location_id] = list()
+      location_id_to_state_list[location_id].append(dict(state))
   return (
-      states,
+      location_id_to_state_list,
       global_state,
-      location_id_to_type_and_values,
+      location_id_to_type_ids_and_values,
       location_to_id,
-      method_id_to_types,
       fresh_vars,
-      name_space,
+      type_var_id_to_annotation,
       location_id_to_name,
   )
 
@@ -471,37 +449,36 @@ def process_termination():
   pd.DataFrame.to_csv(df, log_file)
 
   (
-      states,
+      location_id_to_state_list,
       global_state,
-      location_id_to_type_and_values,
+      location_id_to_type_ids_and_values,
       location_to_id,
-      method_id_to_types,
       fresh_vars,
-      name_space,
+      type_var_id_to_annotation,
       location_id_to_name,
   ) = create_states(record_list)
   n_symbols = fresh_vars.num_ids()
-  for k, v in location_id_to_type_and_values.items():
+  for k, v in location_id_to_type_ids_and_values.items():
     print(f"{k}{location_to_id.get_key(k)} : {v}")
-  solution = find_solution(states, global_state, location_id_to_type_and_values, n_symbols)
-  print(name_space)
-  replace_id_with_names(solution, name_space)
+  solution = find_solution(location_id_to_state_list, global_state, location_id_to_type_ids_and_values, n_symbols)
+  print(type_var_id_to_annotation)
+  replace_type_ids_with_names(solution, type_var_id_to_annotation)
 
   # for i, v in enumerate(solution):
   #   print(f"{i} : {v}")
   #
-  for location_id, type_and_values in location_id_to_type_and_values.items():
-    symbolic_type = type_and_values.type
+  for location_id, type_and_values in location_id_to_type_ids_and_values.items():
+    symbolic_type = type_and_values.type_ids
     if all(solution[x].get_name() != "identity" for x in symbolic_type):
       print(
           f"{location_id}{location_to_id.get_key(location_id)} :"
-          f" {[solution[x] for x in type_and_values.type]}"
+          f" {[solution[x] for x in type_and_values.type_ids]}"
       )
 
-  annotations_by_line_by_module: dict[str, dict[int, Annotation]] = (
+  annotations_by_line_by_module: dict[str, dict[int, list]] = (
       collections.defaultdict(lambda: collections.defaultdict(list))
   )
-  for location_id, type_and_values in location_id_to_type_and_values.items():
+  for location_id, type_and_values in location_id_to_type_ids_and_values.items():
     module_name, method_id, instruction_id, line_number, opcode = (
         location_to_id.get_key(location_id)
     )
@@ -509,8 +486,7 @@ def process_termination():
     del method_id, instruction_id
     line_number = int(line_number)
 
-    symbolic_type = type_and_values.type
-    symbolic_shape = [solution[x] for x in type_and_values.type]
+    symbolic_shape = [solution[x] for x in type_and_values.type_ids]
     concrete_shapes = type_and_values.values
 
     annotation = Annotation(
