@@ -146,6 +146,7 @@ class OperatorApply:
         "method_id": loc[1],
         "instruction_id": loc[2],
         "lineno": loc[3],
+        "frame_id": self.cur_frame_id,
         "type": type if type else opname[opcode],
         "indentation": len(self.loop_stack) + len(self.function_call_stack),
     }
@@ -170,6 +171,7 @@ class OperatorApply:
     self.already_in_receiver = True
 
     cur_frame = get_instrumented_program_frame()
+    self.cur_frame_id = self.heap_object_tracking.get_object_id(cur_frame)
     instr = id_to_orig_bytecode[method_id][instr_id]
 
     if isinstance(instr, Label):
@@ -196,7 +198,7 @@ class OperatorApply:
               loc,
               {
                   "name": function_name,
-                  "result_and_args": [self.novalue] + object_id_stack[1:],
+                  "result_and_args": [self.novalue] + object_id_stack,
                   "indentation": (
                       len(self.loop_stack) + len(self.function_name_stack)
                   ) - 1,
@@ -236,7 +238,7 @@ class OperatorApply:
               loc,
               {
                   "name": function_name,
-                  "result_and_args": [self.novalue] + object_id_stack[1:],
+                  "result_and_args": [self.novalue] + object_id_stack,
                   "indentation": (
                       len(self.loop_stack) + len(self.function_name_stack)
                   ) - 1,
@@ -271,7 +273,7 @@ class OperatorApply:
                   "name": function_name,
                   "result_and_args": (
                       [self.novalue]
-                      + object_id_stack[1:-1]
+                      + object_id_stack[:-1]
                       + [
                           keys,
                       ]

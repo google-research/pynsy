@@ -203,7 +203,7 @@ templates = [
 ]
 
 
-def find_solution(states, location_id_to_type_and_values, n_symbols):
+def find_solution(states, global_state, location_id_to_type_and_values, n_symbols):
   solution = [
       TemplateInstance(identity_template, [i]) for i in range(n_symbols)
   ]
@@ -221,7 +221,7 @@ def find_solution(states, location_id_to_type_and_values, n_symbols):
           vars = [var] + list(vars)
           holds = True
           for state in state_list:
-            if not template.predicate(state, vars):
+            if not template.predicate(state|global_state, vars):
               holds = False
               break
           if holds:
@@ -310,8 +310,7 @@ def get_types_in_method(method_id, method_id_to_dimensions):
   return method_id_to_dimensions[method_id]
 
 
-def get_symbolic_type(value, vars, location_id):
-  abs = value["abs"]
+def get_symbolic_type(abs, vars, location_id):
   symbolic_shape_type = []
   for _ in abs:
     symbolic_shape_type.append(vars.get_fresh_id(location_id))
@@ -325,12 +324,15 @@ def get_state_update(symbolic_type, value):
 
 @dataclasses.dataclass
 class TypeAndValues:
-  type: type[Any]
   values: list[Any]
 
-  def __init__(self, type):
-    self.type = type
+  def __init__(self):
+    self.type = None
     self.values = []
+    self.value_set = set()
+
+  def add_value_to_set(self, value):
+    self.value_set.add(value)
 
   def add_value(self, value):
     self.values.append(value)
@@ -361,6 +363,15 @@ class TypeAndValues:
 #   def __repr__(self):
 #     return f"(type : {self.type}, values: {self.values})"
 
+def set_symbolic_type_vars(location_id_to_type_and_values):
+  fresh_vars = FreshVariableId()
+  global_state = dict()
+  for location_id, type_and_values in location_id_to_type_and_values.items():
+    value = next(iter(type_and_values.value_set))
+    type_and_values.type = get_symbolic_type(value, fresh_vars, location_id)
+    if len(type_and_values.value_set) == 1:
+      global_state.update(zip(type_and_values.type, value))
+  return fresh_vars, global_state
 
 def create_states(record_list):
   states = dict()
@@ -369,8 +380,24 @@ def create_states(record_list):
   method_id_to_types = dict()
   state = dict()
   location_to_id = UniqueIdForKey()
-  fresh_vars = FreshVariableId()
   name_space = dict()
+  location_id_to_name = dict()
+
+  rlen = len(record_list)
+  for i in range(rlen):
+    row = record_list[i]
+    value = row["result_and_args"][0]
+    if is_shape_value(value):
+      location = tuple([row[x] for x in keys])
+      location_id = location_to_id.get_id(location)
+      if location_id not in location_id_to_type_and_values:
+        type_and_values = TypeAndValues()
+        type_and_values.add_value_to_set(value["abs"])
+        location_id_to_type_and_values[location_id] = type_and_values
+      else:
+        location_id_to_type_and_values[location_id].add_value_to_set(value["abs"])
+  fresh_vars, global_state = set_symbolic_type_vars(location_id_to_type_and_values)
+
 
   rlen = len(record_list)
   for i in range(rlen):
@@ -395,16 +422,12 @@ def create_states(record_list):
       state = {key: state[key] for key in state if key not in types_in_method}
     value = row["result_and_args"][0]
     if is_shape_value(value):
-      location = tuple([name] + [row[x] for x in keys])
+      location = tuple([row[x] for x in keys])
       location_id = location_to_id.get_id(location)
-      if location_id not in location_id_to_type_and_values:
-        symbolic_type = get_symbolic_type(value, fresh_vars, location_id)
-        type_and_values = TypeAndValues(symbolic_type)
-        type_and_values.add_value(value)
-        location_id_to_type_and_values[location_id] = type_and_values
-      else:
-        symbolic_type = location_id_to_type_and_values[location_id].type
-        location_id_to_type_and_values[location_id].add_value(value)
+      location_id_to_name[location_id] = name
+      symbolic_type = location_id_to_type_and_values[location_id].type
+      location_id_to_type_and_values[location_id].add_value(value)
+
       method_id = row["method_id"]
       types_in_method = get_types_in_method(method_id, method_id_to_types)
       types_in_method.update(symbolic_type)
@@ -422,11 +445,13 @@ def create_states(record_list):
       states[location_id].append(dict(state))
   return (
       states,
+      global_state,
       location_id_to_type_and_values,
       location_to_id,
       method_id_to_types,
       fresh_vars,
       name_space,
+      location_id_to_name,
   )
 
 
@@ -447,16 +472,18 @@ def process_termination():
 
   (
       states,
+      global_state,
       location_id_to_type_and_values,
       location_to_id,
       method_id_to_types,
       fresh_vars,
       name_space,
+      location_id_to_name,
   ) = create_states(record_list)
   n_symbols = fresh_vars.num_ids()
   for k, v in location_id_to_type_and_values.items():
     print(f"{k}{location_to_id.get_key(k)} : {v}")
-  solution = find_solution(states, location_id_to_type_and_values, n_symbols)
+  solution = find_solution(states, global_state, location_id_to_type_and_values, n_symbols)
   print(name_space)
   replace_id_with_names(solution, name_space)
 
@@ -475,9 +502,10 @@ def process_termination():
       collections.defaultdict(lambda: collections.defaultdict(list))
   )
   for location_id, type_and_values in location_id_to_type_and_values.items():
-    name, module_name, method_id, instruction_id, line_number, opcode = (
+    module_name, method_id, instruction_id, line_number, opcode = (
         location_to_id.get_key(location_id)
     )
+    name = location_id_to_name[location_id]
     del method_id, instruction_id
     line_number = int(line_number)
 
