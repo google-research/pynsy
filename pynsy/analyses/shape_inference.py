@@ -186,7 +186,7 @@ class TensorShapeInferenceUtils:
         Template(
             "=",
             2,
-            lambda state, vars: state.get(vars[0], 0) == state.get(vars[1]),
+            lambda state, vars: state.get(vars[0], 0) == state.get(vars[1], 0),
             lambda vars: vars[0],
         ),
         Template(
