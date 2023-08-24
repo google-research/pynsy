@@ -272,23 +272,6 @@ class PType:
     else:
       return False
 
-  def find_common_subtree(self, other):
-    if self.name == "TypeVar":
-      return self
-    elif self.name == other.name:
-      if len(self.children) == len(other.children):
-        if len(self.children) == 0:
-          return self
-        else:
-          ret = copy.copy(self)
-          for c1, c2 in zip(self.children, other.children):
-            ret.add_children([c1.find_common_subtree(c2)])
-          return ret
-      else:
-        return PTypeVar()
-    else:
-      return PTypeVar()
-
   def assign_symbolic_vars(self, symbolic_type, location_id, fresh_variable_generator):
     if self.name == "TypeVar":
       self.symbolic_id = fresh_variable_generator.get_fresh_id(location_id)
@@ -310,15 +293,31 @@ class PType:
 
 class PTypeVar(PType):
 
-  def __init__(self, type_id):
+  @classmethod
+  def get_ptype(cls):
+    return PTypeVar()
+
+  def __init__(self):
     super().__init__("TypeVar")
+    self.type_id = -1
+
+  def set_type_id(self, type_id):
     self.type_id = type_id
+
+  def find_common_subtree(self, other):
+    return self
+
+  def assign_type_ids(self, type_ids, location_id, fresh_variable_generator):
+    self.type_id = fresh_variable_generator.get_fresh_id(location_id)
+    type_ids.append(self.type_id)
+
+  def extract_values_for_type_ids(self, type_value):
+    return [type_value]
 
   def __repr__(self):
     return f"{self.name}({self.type_id})"
 
 class PTupleType(PType):
-
   @classmethod
   def get_ptype(cls, element_types):
     return PTupleType(element_types)
@@ -326,6 +325,26 @@ class PTupleType(PType):
   def __init__(self, element_types):
     super().__init__("tuple")
     self.element_types = element_types
+
+  def find_common_subtree(self, other):
+    if self == other:
+      return self
+    elif not isinstance(other, PTupleType):
+      return PTypeVar()
+    elif len(self.element_types) != len(other.element_types):
+      return PTypeVar()
+    else:
+      return PTupleType.get_ptype([c1.find_common_subtree(c2) for c1, c2 in zip(self.element_types, other.element_types)])
+
+  def assign_type_ids(self, type_ids, location_id, fresh_variable_generator):
+    for c1 in self.element_types:
+      c1.assign_type_ids(type_ids, location_id, fresh_variable_generator)
+
+  def extract_values_for_type_ids(self, type_value):
+    ret = []
+    for c1 in self.element_types:
+      ret.extend(c1.extract_values_for_type_ids(type_value))
+    return ret
 
   def __repr__(self):
     if self.repr is None:
@@ -348,6 +367,20 @@ class PListType(PType):
     super().__init__("list")
     self.element_type = element_type
 
+  def find_common_subtree(self, other):
+    if self == other:
+      return self
+    elif not isinstance(other, PListType):
+      return PTypeVar()
+    else:
+      return PListType.get_ptype(self.element_type.find_common_subtree(other.element_type))
+
+  def assign_type_ids(self, type_ids, location_id, fresh_variable_generator):
+    self.element_type.assign_type_ids(type_ids, location_id, fresh_variable_generator)
+
+  def extract_values_for_type_ids(self, type_value):
+    return self.element_type.extract_values_for_type_ids(type_value)
+
   def __repr__(self):
     self.repr = f"{self.name}[{self.element_type}]"
     return self.repr
@@ -362,23 +395,52 @@ class PSetType(PType):
     super().__init__("set")
     self.element_type = element_type
 
+  def find_common_subtree(self, other):
+    if self == other:
+      return self
+    elif not isinstance(other, PSetType):
+      return PTypeVar()
+    else:
+      return PSetType.get_ptype(self.element_type.find_common_subtree(other.element_type))
+
+  def assign_type_ids(self, type_ids, location_id, fresh_variable_generator):
+    self.element_type.assign_type_ids(type_ids, location_id, fresh_variable_generator)
+
+  def extract_values_for_type_ids(self, type_value):
+    return self.element_type.extract_values_for_type_ids(type_value)
+
   def __repr__(self):
     self.repr = f"{self.name}[{self.element_type}]"
     return self.repr
 
 class PDictType(PType):
-    @classmethod
-    def get_ptype(cls, key_type, value_type):
-      return PDictType(key_type, value_type)
+  @classmethod
+  def get_ptype(cls, key_type, value_type):
+    return PDictType(key_type, value_type)
 
-    def __init__(self, key_type, value_type):
-      super().__init__("dict")
-      self.key_type = key_type
-      self.value_type = value_type
+  def __init__(self, key_type, value_type):
+    super().__init__("dict")
+    self.key_type = key_type
+    self.value_type = value_type
 
-    def __repr__(self):
-      self.repr = f"{self.name}[{self.key_type}, {self.value_type}]"
-      return self.repr
+  def find_common_subtree(self, other):
+    if self == other:
+      return self
+    elif not isinstance(other, PDictType):
+      return PTypeVar()
+    else:
+      return PDictType.get_ptype(self.key_type.find_common_subtree(other.key_type), self.value_type.find_common_subtree(other.value_type))
+
+  def assign_type_ids(self, type_ids, location_id, fresh_variable_generator):
+    self.key_type.assign_type_ids(type_ids, location_id, fresh_variable_generator)
+    self.value_type.assign_type_ids(type_ids, location_id, fresh_variable_generator)
+
+  def extract_values_for_type_ids(self, type_value):
+    return self.key_type.extract_values_for_type_ids(type_value) + self.value_type.extract_values_for_type_ids(type_value)
+
+  def __repr__(self):
+    self.repr = f"{self.name}[{self.key_type}, {self.value_type}]"
+    return self.repr
 
 class PNominalType(PType):
   name_to_ptype = {}
@@ -392,8 +454,22 @@ class PNominalType(PType):
       cls.name_to_ptype[name] = ret
       return ret
 
+  def extract_values_for_type_ids(self, type_value):
+    return []
+
   def __init__(self, name):
     super().__init__(name)
+
+  def find_common_subtree(self, other):
+    if self == PNominalType.get_ptype("Any") or other == PNominalType.get_ptype("Any"):
+      return PNominalType.get_ptype("Any")
+    elif self == other:
+      return self
+    else:
+      return PTypeVar.get_ptype()
+
+  def assign_type_ids(self, type_ids, location_id, fresh_variable_generator):
+    pass
 
   def __repr__(self):
     self.repr = self.name
@@ -411,7 +487,8 @@ class PUnionType(PType):
     elif len(possible_types_set) == 1:
       return possible_types[0]
     elif len(possible_types_set) <= cls.max_children:
-      return PUnionType(possible_types_set)
+      tmp = sorted([(c, repr(c)) for c in possible_types_set], key=lambda x: x[1])
+      return PUnionType([e[0] for e in tmp])
     else:
       return PNominalType.get_ptype("Any")
 
@@ -419,35 +496,52 @@ class PUnionType(PType):
     super().__init__("Union")
     self.possible_types = possible_types
 
+  def find_common_subtree(self, other):
+    if self == other:
+      return self
+    elif not isinstance(other, PUnionType):
+      return PTypeVar()
+    elif len(self.possible_types) != len(other.possible_types):
+      return PTypeVar()
+    else:
+      return PUnionType.get_ptype([c1.find_common_subtree(c2) for c1, c2 in zip(self.possible_types, other.possible_types)])
+
+  def assign_type_ids(self, type_ids, location_id, fresh_variable_generator):
+    for c in self.possible_types:
+      c.assign_type_ids(type_ids, location_id, fresh_variable_generator)
+
+  def extract_values_for_type_ids(self, type_value):
+    return [c for l in self.possible_types for c in l.extract_values_for_type_ids(type_value)]
+
   def __repr__(self):
-    tmp = sorted([repr(c) for c in self.possible_types])
+    tmp = [repr(c) for c in self.possible_types]
     self.repr = f"{self.name}[{', '.join(tmp)}]"
     return self.repr
 
 def abstraction(obj):
-  if isinstance(obj, list):
-    ignore = False
-  elif isinstance(obj, tuple):
-    ignore = False
-  elif isinstance(obj, dict):
-    ignore = False
-  elif isinstance(obj, set):
-    ignore = False
-  elif isinstance(obj, int):
-    ignore = True
-  elif isinstance(obj, float):
-    ignore = True
-  elif isinstance(obj, str):
-    ignore = True
-  elif isinstance(obj, bool):
-    ignore = True
-  elif isinstance(obj, bytes):
-    ignore = True
-  elif isinstance(obj, type(None)):
-    ignore = True
-  else:
-    ignore = False
-  return ignore, get_type(obj)
+  # if isinstance(obj, list):
+  #   ignore = False
+  # elif isinstance(obj, tuple):
+  #   ignore = False
+  # elif isinstance(obj, dict):
+  #   ignore = False
+  # elif isinstance(obj, set):
+  #   ignore = False
+  # elif isinstance(obj, int):
+  #   ignore = True
+  # elif isinstance(obj, float):
+  #   ignore = True
+  # elif isinstance(obj, str):
+  #   ignore = True
+  # elif isinstance(obj, bool):
+  #   ignore = True
+  # elif isinstance(obj, bytes):
+  #   ignore = True
+  # elif isinstance(obj, type(None)):
+  #   ignore = True
+  # else:
+  #   ignore = False
+  return True, get_type(obj)
 
 
 

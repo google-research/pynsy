@@ -91,6 +91,47 @@ class MyTestCase(unittest.TestCase):
     print(t)
     self.assertEqual(str(t), "(False, dict[Union[int, str], Union[int, list[Union[int, str]]]])")
 
+  def test_fcst1(self):
+    t1 = abstraction({"head": 5, 2: None})
+    t2 = abstraction({"head": 5, "tail": [7, 8, "a", "b"], 1: 8})
+    t = t1[1].find_common_subtree(t2[1])
+    print(t)
+    self.assertEqual(str(t), "dict[Union[int, str], TypeVar(-1)]")
+
+  def test_fcst2(self):
+    t1 = abstraction((1, "a", 2, "b"))
+    t2 = abstraction((1, 2, 3, 4))
+    t = t1[1].find_common_subtree(t2[1])
+    print(t)
+    self.assertEqual(str(t), "tuple[int, TypeVar(-1), int, TypeVar(-1)]")
+
+  def test_fcst3(self):
+    t1 = abstraction((1, 2, 2))
+    t2 = abstraction((1, 2, 3, 4))
+    t = t1[1].find_common_subtree(t2[1])
+    print(t)
+    self.assertEqual(str(t), "tuple[int,...]")
+
+  def test_fcst4(self):
+    t1 = abstraction((1, 2, "b"))
+    t2 = abstraction((1, 2, 3, 4))
+    t = t1[1].find_common_subtree(t2[1])
+    print(t)
+    self.assertEqual(str(t), "TypeVar(-1)")
+
+  def test_fcst5(self):
+    t1 = abstraction({"head": 5, 2: "tail", False: True})
+    t2 = abstraction({"head": 5, 2: "tail"})
+    t = t1[1].find_common_subtree(t2[1])
+    print(t)
+    self.assertEqual(str(t), "dict[Any, Any]")
+
+  def test_fcst6(self):
+    t1 = abstraction({"head": 5, 2: None})
+    t2 = abstraction({"head": 5, "tail": [7, 8, "a", "b"], 1: 8})
+    t = t1[1].find_common_subtree(t2[1])
+    print(t)
+    self.assertEqual(str(t), "dict[Union[int, str], TypeVar(-1)]")
 
 
 if __name__ == '__main__':
