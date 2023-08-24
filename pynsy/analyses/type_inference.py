@@ -16,6 +16,7 @@ import collections
 import dataclasses
 from datetime import datetime
 import io
+import copy
 import itertools
 from typing import Any
 
@@ -193,31 +194,8 @@ class PythonGenericTypeInferenceUtils:
 
 
   def is_type_value(self, value):
-    return isinstance(value["abs"], TypeConstructor)
+    return isinstance(value["abs"], PType)
 
-  def get_var_to_name(self, equivalence_classes, name_space):
-    var_to_name = dict()
-    for i, s in enumerate(equivalence_classes):
-      done = False
-      if s is not None:
-        for n in name_space:
-          if n in s:
-            done = True
-            for e in s:
-              var_to_name[e] = name_space[n]
-            break
-        if not done:
-          min_e = min(s)
-          for e in s:
-            var_to_name[e] = f"d{min_e}"
-    return var_to_name
-
-
-  def replace_type_ids_with_names(self, solution, type_id_to_annotation):
-    equivalence_classes = self.get_equivalence_classes(solution)
-    var_to_name = self.get_var_to_name(equivalence_classes, type_id_to_annotation)
-    for i, v in enumerate(solution):
-      v.vars = [var_to_name[i] for i in v.vars]
 
   def get_type_ids(self, abs, vars, location_id):
     type_ids = []
@@ -230,10 +208,7 @@ class PythonGenericTypeInferenceUtils:
     return state_update
 
   def set_annotation(self, row, type_ids, type_id_to_annotation):
-    if "special" in row:
-      names = row["special"]
-      for type_id, name in zip(type_ids, names):
-        type_id_to_annotation[type_id] = name
+    pass
 
   def set_type_ids(self, location_id_to_type_and_values, fresh_vars, global_state):
     for location_id, type_and_values in location_id_to_type_and_values.items():
@@ -277,51 +252,45 @@ def get_name(opcode, name):
 def count_leading_spaces(s: str) -> int:
   return len(s) - len(s.lstrip(" "))
 
-class TypeConstructor:
+
+
+class PType:
 
   def __init__(self, name):
     self.name = name
-    self.symbolic_id = None
-    self.children = []
+    self.repr = None
 
-  def add_children(self, children):
-    self.children.extend(children)
+  def __hash__(self):
+    return hash(repr(self))
 
-  def __repr__(self):
-    if len(self.children) == 0:
-      return f"T:{self.name}"
-    else:
-      return f"T:{self.name}[{', '.join([repr(c) for c in self.children])}]"
 
   def __eq__(self, other):
-    if self.name != other.name:
+    if not isinstance(other, PType):
       return False
-    if len(self.children) != len(other.children):
+    if repr(self) == repr(other):
+      return True
+    else:
       return False
-    for c1, c2 in zip(self.children, other.children):
-      if c1 != c2:
-        return False
-    return True
 
   def find_common_subtree(self, other):
-    if self.name == "Any":
+    if self.name == "TypeVar":
       return self
     elif self.name == other.name:
       if len(self.children) == len(other.children):
         if len(self.children) == 0:
           return self
         else:
-          ret = TypeConstructor(self.name)
+          ret = copy.copy(self)
           for c1, c2 in zip(self.children, other.children):
             ret.add_children([c1.find_common_subtree(c2)])
           return ret
       else:
-        return TypeConstructor("Any")
+        return PTypeVar()
     else:
-      return TypeConstructor("Any")
+      return PTypeVar()
 
   def assign_symbolic_vars(self, symbolic_type, location_id, fresh_variable_generator):
-    if self.name == "Any":
+    if self.name == "TypeVar":
       self.symbolic_id = fresh_variable_generator.get_fresh_id(location_id)
       symbolic_type.append(self.symbolic_id)
       return
@@ -329,14 +298,131 @@ class TypeConstructor:
       for c1 in self.children:
         c1.assign_symbolic_vars(symbolic_type, location_id, fresh_variable_generator)
 
-  def extract_values_for_Any(self, type_value):
-    if self.name == "Any":
+  def extract_values_for_type_ids(self, type_value):
+    if self.name == "TypeVar":
       return [type_value]
     else:
       ret = []
       for c1 in self.children:
-        ret.extend(self.extract_values_for_Any(c1))
+        ret.extend(self.extract_values_for_type_ids(c1))
       return ret
+
+
+class PTypeVar(PType):
+
+  def __init__(self, type_id):
+    super().__init__("TypeVar")
+    self.type_id = type_id
+
+  def __repr__(self):
+    return f"{self.name}({self.type_id})"
+
+class PTupleType(PType):
+
+  @classmethod
+  def get_ptype(cls, element_types):
+    return PTupleType(element_types)
+
+  def __init__(self, element_types):
+    super().__init__("tuple")
+    self.element_types = element_types
+
+  def __repr__(self):
+    if self.repr is None:
+      element_types_repr = [repr(c) for c in self.element_types]
+      if len(element_types_repr) == 0:
+        self.repr = f"{self.name}[{PNominalType.get_ptype('Any')}]"
+      elif len(set(element_types_repr)) == 1:
+        self.repr = f"{self.name}[{element_types_repr[0]},...]"
+      else:
+        self.repr = f"{self.name}[{', '.join(element_types_repr)}]"
+    return self.repr
+
+class PListType(PType):
+
+  @classmethod
+  def get_ptype(cls, element_type):
+    return PListType(element_type)
+
+  def __init__(self, element_type):
+    super().__init__("list")
+    self.element_type = element_type
+
+  def __repr__(self):
+    self.repr = f"{self.name}[{self.element_type}]"
+    return self.repr
+
+class PSetType(PType):
+
+  @classmethod
+  def get_ptype(cls, element_type):
+    return PSetType(element_type)
+
+  def __init__(self, element_type):
+    super().__init__("set")
+    self.element_type = element_type
+
+  def __repr__(self):
+    self.repr = f"{self.name}[{self.element_type}]"
+    return self.repr
+
+class PDictType(PType):
+    @classmethod
+    def get_ptype(cls, key_type, value_type):
+      return PDictType(key_type, value_type)
+
+    def __init__(self, key_type, value_type):
+      super().__init__("dict")
+      self.key_type = key_type
+      self.value_type = value_type
+
+    def __repr__(self):
+      self.repr = f"{self.name}[{self.key_type}, {self.value_type}]"
+      return self.repr
+
+class PNominalType(PType):
+  name_to_ptype = {}
+
+  @classmethod
+  def get_ptype(cls, name):
+    if name in cls.name_to_ptype:
+      return cls.name_to_ptype[name]
+    else:
+      ret = PNominalType(name)
+      cls.name_to_ptype[name] = ret
+      return ret
+
+  def __init__(self, name):
+    super().__init__(name)
+
+  def __repr__(self):
+    self.repr = self.name
+    return self.repr
+
+
+class PUnionType(PType):
+  max_children = 2
+
+  @classmethod
+  def get_ptype(cls, possible_types):
+    possible_types_set = set(possible_types)
+    if len(possible_types_set) == 0:
+      return PNominalType.get_ptype("Any")
+    elif len(possible_types_set) == 1:
+      return possible_types[0]
+    elif len(possible_types_set) <= cls.max_children:
+      return PUnionType(possible_types_set)
+    else:
+      return PNominalType.get_ptype("Any")
+
+  def __init__(self, possible_types):
+    super().__init__("Union")
+    self.possible_types = possible_types
+
+  def __repr__(self):
+    tmp = sorted([repr(c) for c in self.possible_types])
+    self.repr = f"{self.name}[{', '.join(tmp)}]"
+    return self.repr
 
 def abstraction(obj):
   if isinstance(obj, list):
@@ -367,34 +453,32 @@ def abstraction(obj):
 
 
 def get_type(obj):
-  if isinstance(obj, list):
-    ret = TypeConstructor("list")
-    ret.add_children([get_type(o) for o in obj])
-  elif isinstance(obj, tuple):
-    ret = TypeConstructor("tuple")
-    ret.add_children([get_type(o) for o in obj])
-  elif isinstance(obj, dict):
-    ret = TypeConstructor("dict")
-    ret.add_children(
-        [[get_type(o) for o in obj.keys()], [get_type(o) for o in obj.values()]]
-    )
-  elif isinstance(obj, set):
-    ret = TypeConstructor("set")
-    ret.add_children([get_type(o) for o in obj])
+  if isinstance(obj, bool):
+    ret = PNominalType.get_ptype("bool")
   elif isinstance(obj, int):
-    ret = TypeConstructor("int")
+    ret = PNominalType.get_ptype("int")
   elif isinstance(obj, float):
-    ret = TypeConstructor("float")
-  elif isinstance(obj, str):
-    ret = TypeConstructor("str")
-  elif isinstance(obj, bool):
-    ret = TypeConstructor("bool")
+    ret = PNominalType.get_ptype("float")
   elif isinstance(obj, bytes):
-    ret = TypeConstructor("bytes")
+    ret = PNominalType.get_ptype("bytes")
+  elif isinstance(obj, str):
+    ret = PNominalType.get_ptype("str")
   elif isinstance(obj, type(None)):
-    ret = TypeConstructor("none")
+    ret = PNominalType.get_ptype("NoneType")
+  elif isinstance(obj, tuple):
+    ret = PTupleType.get_ptype([get_type(o) for o in obj])
+  elif isinstance(obj, set):
+    child = PUnionType.get_ptype([get_type(o) for o in obj])
+    ret = PSetType.get_ptype(child)
+  elif isinstance(obj, list):
+    child = PUnionType.get_ptype([get_type(o) for o in obj])
+    ret = PListType.get_ptype(child)
+  elif isinstance(obj, dict):
+    key_type = PUnionType.get_ptype([get_type(k) for k in obj.keys()])
+    value_type = PUnionType.get_ptype([get_type(v) for v in obj.values()])
+    ret = PDictType.get_ptype(key_type, value_type)
   else:
-    ret = TypeConstructor(str(type(obj)).split("'")[1])
+    ret = PNominalType.get_ptype(type(obj).__name__)
   return ret
 
 
@@ -416,151 +500,125 @@ def process_termination():
   type_utils = PythonGenericTypeInferenceUtils()
   type_inference = TypeInference(type_utils)
   type_inference.create_type_ids_and_global_state(record_list)
-  type_inference.create_states(record_list)
-
-  (
-      location_id_to_state_list,
-      global_state,
-      location_id_to_type_ids_and_values,
-      location_to_id,
-      fresh_vars,
-      type_id_to_annotation,
-      location_id_to_name,
-      method_id_to_type_ids,
-  ) = type_inference.get_data()
-
-  for k, v in location_id_to_type_ids_and_values.items():
-    print(f"{k}{location_to_id.get_key(k)} : {v}")
-  solution = type_inference.find_solution()
-  print(type_id_to_annotation)
-  type_utils.replace_type_ids_with_names(solution, type_id_to_annotation)
-  type_inference.print_solution(solution)
-
-  annotations_by_line_by_module: dict[str, dict[int, list]] = (
-      collections.defaultdict(lambda: collections.defaultdict(list))
-  )
-  for location_id, type_and_values in location_id_to_type_ids_and_values.items():
-    module_name, method_id, instruction_id, line_number, opcode = (
-        location_to_id.get_key(location_id)
-    )
-    name = location_id_to_name[location_id]
-    del method_id, instruction_id
-    line_number = int(line_number)
-
-    symbolic_shape = [solution[x] for x in type_and_values.type_ids]
-    concrete_shapes = type_and_values.values
-
-    annotation = Annotation(
-        opcode=opcode,
-        name=name,
-        symbolic_shape=symbolic_shape,
-        concrete_shape=[
-            concrete_shape["abs"] for concrete_shape in concrete_shapes
-        ],
-    )
-    annotations_by_line_by_module[module_name][line_number].append(annotation)
-
-  modules_by_name = {}
-  module_text_by_name = {}
-  for module_name, annotations_by_line in annotations_by_line_by_module.items():
-    module = module_loader.import_method_from_module(module_name)
-    modules_by_name[module_name] = module
-
-    module_path = module.__file__
-    with open(module_path, "r") as f:
-      module_text = f.read()
-    module_lines = module_text.split("\n")
-    module_text_by_name[module_name] = module_text
-    sorted_line_numbers = sorted(annotations_by_line)
-
-    def transform_line_number(line_number):
-      # Explanation:
-      # - The line numbers in the trace are one-indexed, so subtracting one is
-      #   necessary to get true line number for indexing into the Python list of
-      #   file content lines.
-      return max(0, line_number - 1)
-
-    annotated_lines = []
-    last_line_number = 0
-
-    for line_number in sorted_line_numbers:
-      if last_line_number == 0:
-        start_index = 0
-      else:
-        start_index = transform_line_number(last_line_number)
-      end_index = transform_line_number(line_number)
-      annotated_lines.extend(module_lines[start_index:end_index])
-      last_line_number = line_number
-
-      annotated_line = module_lines[end_index]
-      indent = count_leading_spaces(annotated_line)
-      annotations = annotations_by_line[line_number]
-      for annotation in annotations:
-        s = annotation.to_string(indent=indent, color=True)
-        annotated_lines.append(s)
-
-    end_index = transform_line_number(last_line_number)
-    annotated_lines.extend(module_lines[end_index:])
-    annotated_source = "\n".join(annotated_lines)
-    if verbose:
-      annotated_text = Text(annotated_source)
-      annotated_text.highlight_regex(r"\s*# ↳.+", style="bold magenta")
-      print_panel(annotated_text, title=f"Shape annotations: [b]{module_name}")
-
-    annotations_file = util.get_output_path(
-        "shape_inference", f"annotations/{module_name}.py"
-    )
-    log(f"Saving annotated source file: {annotations_file}.")
-    with open(annotations_file, "w") as out:
-      out.write("# Auto-generated file with array shape annotations.\n")
-      out.write(f"# Original file: {module_path}\n\n")
-      out.write(annotated_source)
-
-  annotations_file = util.get_output_path("shape_inference", "annotations.txt")
-  with open(annotations_file, "w") as out:
-    log(f"Saving annotations to {annotations_file}.")
-    for (
-        module_name,
-        annotations_by_line,
-    ) in annotations_by_line_by_module.items():
-      for line_number, annotations in annotations_by_line.items():
-        s = []
-        for annotation in annotations:
-          name = get_name(annotation.opcode, annotation.name)
-          shape = tuple(annotation.symbolic_shape)
-          concrete = annotation.concrete_shape
-          s.append((name, shape, concrete))
-        out.write(f"{module_name}@{line_number}:\n")
-        for name, shape, concrete in s:
-          out.write(f"    {name}: {shape} {concrete}\n")
-
-
-observed_hyper_parameters = set()
-
-
-def annotate_shape(shape_or_int, dim_names):
-  for i in range(len(record_list) - 1, -1, -1):
-    if record_list[i]["type"].startswith("CALL_"):
-      record = dict(record_list[i])
-      record["type"] = "LOAD_NAME"
-      record["special"] = (
-          (dim_names,) if isinstance(dim_names, str) else dim_names
-      )
-      record["result_and_args"] = [{
-          "id": 0,
-          "abs": (
-              (shape_or_int,)
-              if isinstance(shape_or_int, int)
-              else shape_or_int.shape
-          ),
-      }]
-      record_list.append(record)
-      break
-
-
-def hyper_parameter(dim_int, dim_name):
-  while dim_int in observed_hyper_parameters:
-    dim_int += 1
-  observed_hyper_parameters.add(dim_int)
-  annotate_shape(dim_int, dim_name)
-  return dim_int
+#   type_inference.create_states(record_list)
+#
+#   (
+#       location_id_to_state_list,
+#       global_state,
+#       location_id_to_type_ids_and_values,
+#       location_to_id,
+#       fresh_vars,
+#       type_id_to_annotation,
+#       location_id_to_name,
+#       method_id_to_type_ids,
+#   ) = type_inference.get_data()
+#
+#   for k, v in location_id_to_type_ids_and_values.items():
+#     print(f"{k}{location_to_id.get_key(k)} : {v}")
+#   solution = type_inference.find_solution()
+#   print(type_id_to_annotation)
+#   type_utils.replace_type_ids_with_names(solution, type_id_to_annotation)
+#   type_inference.print_solution(solution)
+#
+#   annotations_by_line_by_module: dict[str, dict[int, list]] = (
+#       collections.defaultdict(lambda: collections.defaultdict(list))
+#   )
+#   for location_id, type_and_values in location_id_to_type_ids_and_values.items():
+#     module_name, method_id, instruction_id, line_number, opcode = (
+#         location_to_id.get_key(location_id)
+#     )
+#     name = location_id_to_name[location_id]
+#     del method_id, instruction_id
+#     line_number = int(line_number)
+#
+#     symbolic_shape = [solution[x] for x in type_and_values.type_ids]
+#     concrete_shapes = type_and_values.values
+#
+#     annotation = Annotation(
+#         opcode=opcode,
+#         name=name,
+#         symbolic_shape=symbolic_shape,
+#         concrete_shape=[
+#             concrete_shape["abs"] for concrete_shape in concrete_shapes
+#         ],
+#     )
+#     annotations_by_line_by_module[module_name][line_number].append(annotation)
+#
+#   modules_by_name = {}
+#   module_text_by_name = {}
+#   for module_name, annotations_by_line in annotations_by_line_by_module.items():
+#     module = module_loader.import_method_from_module(module_name)
+#     modules_by_name[module_name] = module
+#
+#     module_path = module.__file__
+#     with open(module_path, "r") as f:
+#       module_text = f.read()
+#     module_lines = module_text.split("\n")
+#     module_text_by_name[module_name] = module_text
+#     sorted_line_numbers = sorted(annotations_by_line)
+#
+#     def transform_line_number(line_number):
+#       # Explanation:
+#       # - The line numbers in the trace are one-indexed, so subtracting one is
+#       #   necessary to get true line number for indexing into the Python list of
+#       #   file content lines.
+#       return max(0, line_number - 1)
+#
+#     annotated_lines = []
+#     last_line_number = 0
+#
+#     for line_number in sorted_line_numbers:
+#       if last_line_number == 0:
+#         start_index = 0
+#       else:
+#         start_index = transform_line_number(last_line_number)
+#       end_index = transform_line_number(line_number)
+#       annotated_lines.extend(module_lines[start_index:end_index])
+#       last_line_number = line_number
+#
+#       annotated_line = module_lines[end_index]
+#       indent = count_leading_spaces(annotated_line)
+#       annotations = annotations_by_line[line_number]
+#       for annotation in annotations:
+#         s = annotation.to_string(indent=indent, color=True)
+#         annotated_lines.append(s)
+#
+#     end_index = transform_line_number(last_line_number)
+#     annotated_lines.extend(module_lines[end_index:])
+#     annotated_source = "\n".join(annotated_lines)
+#     if verbose:
+#       annotated_text = Text(annotated_source)
+#       annotated_text.highlight_regex(r"\s*# ↳.+", style="bold magenta")
+#       print_panel(annotated_text, title=f"Shape annotations: [b]{module_name}")
+#
+#     annotations_file = util.get_output_path(
+#         "shape_inference", f"annotations/{module_name}.py"
+#     )
+#     log(f"Saving annotated source file: {annotations_file}.")
+#     with open(annotations_file, "w") as out:
+#       out.write("# Auto-generated file with array shape annotations.\n")
+#       out.write(f"# Original file: {module_path}\n\n")
+#       out.write(annotated_source)
+#
+#   annotations_file = util.get_output_path("shape_inference", "annotations.txt")
+#   with open(annotations_file, "w") as out:
+#     log(f"Saving annotations to {annotations_file}.")
+#     for (
+#         module_name,
+#         annotations_by_line,
+#     ) in annotations_by_line_by_module.items():
+#       for line_number, annotations in annotations_by_line.items():
+#         s = []
+#         for annotation in annotations:
+#           name = get_name(annotation.opcode, annotation.name)
+#           shape = tuple(annotation.symbolic_shape)
+#           concrete = annotation.concrete_shape
+#           s.append((name, shape, concrete))
+#         out.write(f"{module_name}@{line_number}:\n")
+#         for name, shape, concrete in s:
+#           out.write(f"    {name}: {shape} {concrete}\n")
+#
+#
+# observed_hyper_parameters = set()
+#
+#
