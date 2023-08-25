@@ -16,16 +16,13 @@ import collections
 import dataclasses
 from datetime import datetime
 import io
-import copy
-import itertools
 from typing import Any
+from abc import ABC, abstractmethod
 
 import pandas as pd
-from rich.text import Text
 
 from pynsy.analyses import util
 from pynsy.instrumentation import logging_utils
-from pynsy.instrumentation import module_loader
 from pynsy.analyses.shape_inference import TypeInference
 
 log = logging_utils.logger(__name__)
@@ -197,26 +194,30 @@ class PythonGenericTypeInferenceUtils:
     return isinstance(value["abs"], PType)
 
 
-  def get_type_ids(self, abs, vars, location_id):
-    type_ids = []
-    for _ in abs:
-      type_ids.append(vars.get_fresh_id(location_id))
-    return type_ids
-
-  def get_state_update(self, symbolic_type, value):
-    state_update = dict(zip(symbolic_type, value["abs"]))
+  def get_state_update(self, type_and_values, value):
+    type_ids = type_and_values.symbolic_type
+    common_type_value = type_and_values.common_type_value
+    type_values = common_type_value.extract_values_for_type_ids(value["abs"])
+    state_update = dict(zip(type_ids, type_values))
     return state_update
 
   def set_annotation(self, row, type_ids, type_id_to_annotation):
     pass
 
-  def set_type_ids(self, location_id_to_type_and_values, fresh_vars, global_state):
+  def set_type_ids(self,
+      location_id_to_type_and_values,
+      fresh_variable_generator,
+      global_state):
     for location_id, type_and_values in location_id_to_type_and_values.items():
-      value = next(iter(type_and_values.abstraction_set))
-      type_and_values.type_ids = self.get_type_ids(value, fresh_vars, location_id)
-      if len(type_and_values.abstraction_set) == 1:
-        global_state.update(zip(type_and_values.type_ids, value))
-    return fresh_vars, global_state
+      abstraction_set_iter = iter(type_and_values.abstraction_set)
+      common_type_value = next(iter(type_and_values.abstraction_set))
+      for type_value in abstraction_set_iter:
+        common_type_value = common_type_value.find_common_type(type_value)
+      type_ids = []
+      common_type_value.assign_type_ids(type_ids, location_id,
+                                        fresh_variable_generator)
+      type_and_values.type_ids = type_ids
+      type_and_values.common_type_value = common_type_value
 
   def get_equivalence_classes(self, solution):
     equivalence_classes = [{i} for i in range(len(solution))]
@@ -254,7 +255,7 @@ def count_leading_spaces(s: str) -> int:
 
 
 
-class PType:
+class PType(ABC):
 
   def __init__(self, name):
     self.name = name
@@ -272,23 +273,17 @@ class PType:
     else:
       return False
 
-  def assign_symbolic_vars(self, symbolic_type, location_id, fresh_variable_generator):
-    if self.name == "TypeVar":
-      self.symbolic_id = fresh_variable_generator.get_fresh_id(location_id)
-      symbolic_type.append(self.symbolic_id)
-      return
-    else:
-      for c1 in self.children:
-        c1.assign_symbolic_vars(symbolic_type, location_id, fresh_variable_generator)
+  @abstractmethod
+  def find_common_subtree(self, other):
+    return
 
+  @abstractmethod
+  def assign_type_ids(self, type_ids, location_id, fresh_variable_generator):
+    return
+
+  @abstractmethod
   def extract_values_for_type_ids(self, type_value):
-    if self.name == "TypeVar":
-      return [type_value]
-    else:
-      ret = []
-      for c1 in self.children:
-        ret.extend(self.extract_values_for_type_ids(c1))
-      return ret
+    return
 
 
 class PTypeVar(PType):
@@ -436,7 +431,8 @@ class PDictType(PType):
     self.value_type.assign_type_ids(type_ids, location_id, fresh_variable_generator)
 
   def extract_values_for_type_ids(self, type_value):
-    return self.key_type.extract_values_for_type_ids(type_value) + self.value_type.extract_values_for_type_ids(type_value)
+    return self.key_type.extract_values_for_type_ids(type_value) + \
+      self.value_type.extract_values_for_type_ids(type_value)
 
   def __repr__(self):
     self.repr = f"{self.name}[{self.key_type}, {self.value_type}]"

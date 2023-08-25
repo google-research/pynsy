@@ -237,8 +237,9 @@ class TensorShapeInferenceUtils:
       type_ids.append(vars.get_fresh_id(location_id))
     return type_ids
 
-  def get_state_update(self, symbolic_type, value):
-    state_update = dict(zip(symbolic_type, value["abs"]))
+  def get_state_update(self, type_and_values, value):
+    type_ids = type_and_values.type_ids
+    state_update = dict(zip(type_ids, value["abs"]))
     return state_update
 
   def set_annotation(self, row, type_ids, type_id_to_annotation):
@@ -253,7 +254,6 @@ class TensorShapeInferenceUtils:
       type_and_values.type_ids = self.get_type_ids(value, fresh_vars, location_id)
       if len(type_and_values.abstraction_set) == 1:
         global_state.update(zip(type_and_values.type_ids, value))
-    return fresh_vars, global_state
 
   def get_equivalence_classes(self, solution):
     equivalence_classes = [{i} for i in range(len(solution))]
@@ -413,7 +413,7 @@ class TypeInference:
         self.type_utils.set_annotation(row, type_ids, self.type_id_to_annotation)
 
         value = self.location_id_to_type_ids_and_values[location_id].get_last_value()
-        state_update = self.type_utils.get_state_update(type_ids, value)
+        state_update = self.type_utils.get_state_update(self.location_id_to_type_ids_and_values[location_id], value)
         state.update(state_update)
         if location_id not in self.location_id_to_state_list:
           self.location_id_to_state_list[location_id] = list()
