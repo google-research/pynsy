@@ -226,7 +226,7 @@ class TensorShapeInferenceUtils:
 
 
   def replace_type_ids_with_names(self, solution, type_id_to_annotation):
-    equivalence_classes = self.get_equivalence_classes(solution)
+    equivalence_classes = get_equivalence_classes(solution)
     var_to_name = self.get_var_to_name(equivalence_classes, type_id_to_annotation)
     for i, v in enumerate(solution):
       v.vars = [var_to_name[i] for i in v.vars]
@@ -255,28 +255,6 @@ class TensorShapeInferenceUtils:
       if len(type_and_values.abstraction_set) == 1:
         global_state.update(zip(type_and_values.type_ids, value))
 
-  def get_equivalence_classes(self, solution):
-    equivalence_classes = [{i} for i in range(len(solution))]
-    for i, template_instance in enumerate(solution):
-      if template_instance.get_name() == "=":
-        lhs = i
-        rhs = template_instance.vars[0]
-        lhs_index = None
-        rhs_index = None
-        for j, s in enumerate(equivalence_classes):
-          if s is not None and lhs in s:
-            lhs_index = j
-          if s is not None and rhs in s:
-            rhs_index = j
-        if lhs_index != rhs_index:
-          lhs_index, rhs_index = min(lhs_index, rhs_index), max(
-              lhs_index, rhs_index
-          )
-          equivalence_classes[lhs_index].update(equivalence_classes[rhs_index])
-          equivalence_classes[rhs_index] = None
-    return equivalence_classes
-
-
 
 
 def get_name(opcode, name):
@@ -288,6 +266,29 @@ def get_name(opcode, name):
 
 def count_leading_spaces(s: str) -> int:
   return len(s) - len(s.lstrip(" "))
+
+def get_equivalence_classes(solution):
+  equivalence_classes = [{i} for i in range(len(solution))]
+  for i, template_instance in enumerate(solution):
+    if template_instance.get_name() == "=":
+      lhs = i
+      rhs = template_instance.vars[0]
+      lhs_index = None
+      rhs_index = None
+      for j, s in enumerate(equivalence_classes):
+        if s is not None and lhs in s:
+          lhs_index = j
+        if s is not None and rhs in s:
+          rhs_index = j
+      if lhs_index != rhs_index:
+        lhs_index, rhs_index = min(lhs_index, rhs_index), max(
+            lhs_index, rhs_index
+        )
+        equivalence_classes[lhs_index].update(equivalence_classes[rhs_index])
+        equivalence_classes[rhs_index] = None
+  return equivalence_classes
+
+
 
 
 def abstraction(obj):

@@ -23,7 +23,8 @@ import pandas as pd
 
 from pynsy.analyses import util
 from pynsy.instrumentation import logging_utils
-from pynsy.analyses.shape_inference import TypeInference
+from pynsy.analyses.shape_inference import TypeInference, FreshTypeId, UniqueIdForKey, Template, TemplateInstance, get_name
+
 
 log = logging_utils.logger(__name__)
 print_panel = logging_utils.print_panel
@@ -67,113 +68,7 @@ class Annotation:
     return s
 
 
-nicknames = {
-    "UNARY_POSITIVE": "+",
-    "UNARY_NEGATIVE": "-",
-    "UNARY_NOT": "not",
-    "UNARY_INVERT": "~",
-    "GET_ITER": "iter",
-    "GET_YIELD_FROM_ITER": "yield",
-    "BINARY_POWER": "**",
-    "BINARY_MULTIPLY": "*",
-    "BINARY_MATRIX_MULTIPLY": "@",
-    "BINARY_FLOOR_DIVIDE": "//",
-    "BINARY_TRUE_DIVIDE": "/",
-    "BINARY_MODULO": "%",
-    "BINARY_ADD": "+",
-    "BINARY_SUBTRACT": "-",
-    "BINARY_SUBSCR": "__getitem__",
-    "BINARY_LSHIFT": "<<",
-    "BINARY_RSHIFT": ">>",
-    "BINARY_AND": "&",
-    "BINARY_XOR": "^",
-    "BINARY_OR": "|",
-    "COMPARE_OP": "cmp",
-    "INPLACE_POWER": "**=",
-    "INPLACE_MULTIPLY": "*=",
-    "INPLACE_MATRIX_MULTIPLY": "@=",
-    "INPLACE_FLOOR_DIVIDE": "//=",
-    "INPLACE_TRUE_DIVIDE": "/=",
-    "INPLACE_MODULO": "%=",
-    "INPLACE_ADD": "+=",
-    "INPLACE_SUBTRACT": "-=",
-    "INPLACE_LSHIFT": "<<=",
-    "INPLACE_RSHIFT": ">>=",
-    "INPLACE_AND": "&=",
-    "INPLACE_XOR": "^=",
-    "INPLACE_OR": "|=",
-    "RETURN_FUNCTION": "<call>",
-    "RETURN_FUNCTION_KW": "<call>",
-    "RETURN_METHOD": "<call>",
-}
 
-
-class UniqueIdForKey:
-
-  def __init__(self):
-    self.counter = 0
-    self.key_to_id = dict()
-    self.id_to_key = list()
-
-  def get_id(self, key):
-    if key in self.key_to_id:
-      return self.key_to_id[key]
-    else:
-      self.key_to_id[key] = self.counter
-      self.id_to_key.append(key)
-      self.counter += 1
-      return self.counter - 1
-
-  def get_key(self, id):
-    return self.id_to_key[id] if id < len(self.id_to_key) else None
-
-
-class FreshTypeId:
-
-  def __init__(self):
-    self.type_id_to_value = list()
-
-  def get_fresh_id(self, value):
-    self.type_id_to_value.append(value)
-    return len(self.type_id_to_value) - 1
-
-  def get_value(self, id):
-    return self.type_id_to_value[id]
-
-  def num_ids(self):
-    return len(self.type_id_to_value)
-
-
-
-class TemplateInstance:
-
-  def __init__(self, template, vars):
-    self.template = template
-    self.vars = vars
-
-  def get_name(self):
-    return self.template.get_name()
-
-  def get_template(self):
-    return self.template
-
-  def __repr__(self):
-    return f"{self.template.repr(self.vars)}"
-
-
-class Template:
-
-  def __init__(self, name, n_vars, predicate, repr):
-    self.name = name
-    self.n_vars = n_vars
-    self.predicate = predicate
-    self.repr = repr
-
-  def get_name(self):
-    return self.name
-
-  def get_instance(self, vars):
-    return TemplateInstance(self, vars)
 
 
 
@@ -195,7 +90,7 @@ class PythonGenericTypeInferenceUtils:
 
 
   def get_state_update(self, type_and_values, value):
-    type_ids = type_and_values.symbolic_type
+    type_ids = type_and_values.type_ids
     common_type_value = type_and_values.common_type_value
     type_values = common_type_value.extract_values_for_type_ids(value["abs"])
     state_update = dict(zip(type_ids, type_values))
@@ -212,7 +107,7 @@ class PythonGenericTypeInferenceUtils:
       abstraction_set_iter = iter(type_and_values.abstraction_set)
       common_type_value = next(iter(type_and_values.abstraction_set))
       for type_value in abstraction_set_iter:
-        common_type_value = common_type_value.find_common_type(type_value)
+        common_type_value = common_type_value.find_common_subtree(type_value)
       type_ids = []
       common_type_value.assign_type_ids(type_ids, location_id,
                                         fresh_variable_generator)
@@ -240,18 +135,6 @@ class PythonGenericTypeInferenceUtils:
           equivalence_classes[rhs_index] = None
     return equivalence_classes
 
-
-
-
-def get_name(opcode, name):
-  if isinstance(name, str) and name:
-    return name
-  else:
-    return nicknames.get(opcode, f"<{opcode}>")
-
-
-def count_leading_spaces(s: str) -> int:
-  return len(s) - len(s.lstrip(" "))
 
 
 
@@ -590,22 +473,23 @@ def process_termination():
   type_utils = PythonGenericTypeInferenceUtils()
   type_inference = TypeInference(type_utils)
   type_inference.create_type_ids_and_global_state(record_list)
-#   type_inference.create_states(record_list)
-#
-#   (
-#       location_id_to_state_list,
-#       global_state,
-#       location_id_to_type_ids_and_values,
-#       location_to_id,
-#       fresh_vars,
-#       type_id_to_annotation,
-#       location_id_to_name,
-#       method_id_to_type_ids,
-#   ) = type_inference.get_data()
-#
-#   for k, v in location_id_to_type_ids_and_values.items():
-#     print(f"{k}{location_to_id.get_key(k)} : {v}")
-#   solution = type_inference.find_solution()
+  type_inference.create_states(record_list)
+
+  (
+      location_id_to_state_list,
+      global_state,
+      location_id_to_type_ids_and_values,
+      location_to_id,
+      fresh_vars,
+      type_id_to_annotation,
+      location_id_to_name,
+      method_id_to_type_ids,
+  ) = type_inference.get_data()
+
+  for k, v in location_id_to_type_ids_and_values.items():
+    print(f"{k}{location_to_id.get_key(k)} : {v}")
+  solution = type_inference.find_solution()
+  print(solution)
 #   print(type_id_to_annotation)
 #   type_utils.replace_type_ids_with_names(solution, type_id_to_annotation)
 #   type_inference.print_solution(solution)
