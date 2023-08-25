@@ -23,7 +23,7 @@ import pandas as pd
 
 from pynsy.analyses import util
 from pynsy.instrumentation import logging_utils
-from pynsy.analyses.shape_inference import TypeInference, FreshTypeId, UniqueIdForKey, Template, TemplateInstance, get_name
+from pynsy.analyses.shape_inference import TypeInference, Template, get_name
 
 
 log = logging_utils.logger(__name__)
@@ -34,8 +34,6 @@ record_list = []
 
 now = datetime.now()
 timestamp = int(round(now.timestamp()))
-keys = ["module_name", "method_id", "instruction_id", "lineno", "type"]
-
 
 @dataclasses.dataclass
 class Annotation:
@@ -68,11 +66,6 @@ class Annotation:
     return s
 
 
-
-
-
-
-
 class PythonGenericTypeInferenceUtils:
   def __init__(self):
     self.templates = [
@@ -89,30 +82,30 @@ class PythonGenericTypeInferenceUtils:
     return isinstance(value["abs"], PType)
 
 
-  def get_state_update(self, type_and_values, value):
-    type_ids = type_and_values.type_ids
-    common_type_value = type_and_values.common_type_value
-    type_values = common_type_value.extract_values_for_type_ids(value["abs"])
-    state_update = dict(zip(type_ids, type_values))
+  def get_state_update(self, vars_and_values, value):
+    var_ids = vars_and_values.var_ids
+    common_type_value = vars_and_values.common_type_value
+    type_values = common_type_value.extract_values_for_var_ids(value["abs"])
+    state_update = dict(zip(var_ids, type_values))
     return state_update
 
-  def set_annotation(self, row, type_ids, type_id_to_annotation):
+  def set_annotation(self, row, var_ids, var_id_to_annotation):
     pass
 
-  def set_type_ids(self,
-      location_id_to_type_and_values,
-      fresh_variable_generator,
+  def set_var_ids(self,
+      location_id_to_vars_and_values,
+      fresh_var_generator,
       global_state):
-    for location_id, type_and_values in location_id_to_type_and_values.items():
-      abstraction_set_iter = iter(type_and_values.abstraction_set)
-      common_type_value = next(iter(type_and_values.abstraction_set))
+    for location_id, vars_and_values in location_id_to_vars_and_values.items():
+      abstraction_set_iter = iter(vars_and_values.abstraction_set)
+      common_type_value = next(iter(vars_and_values.abstraction_set))
       for type_value in abstraction_set_iter:
         common_type_value = common_type_value.find_common_subtree(type_value)
-      type_ids = []
-      common_type_value.assign_type_ids(type_ids, location_id,
-                                        fresh_variable_generator)
-      type_and_values.type_ids = type_ids
-      type_and_values.common_type_value = common_type_value
+      var_ids = []
+      common_type_value.assign_var_ids(var_ids, location_id,
+                                        fresh_var_generator)
+      vars_and_values.var_ids = var_ids
+      vars_and_values.common_type_value = common_type_value
 
   def get_equivalence_classes(self, solution):
     equivalence_classes = [{i} for i in range(len(solution))]
@@ -161,11 +154,11 @@ class PType(ABC):
     return
 
   @abstractmethod
-  def assign_type_ids(self, type_ids, location_id, fresh_variable_generator):
+  def assign_var_ids(self, var_ids, location_id, fresh_var_generator):
     return
 
   @abstractmethod
-  def extract_values_for_type_ids(self, type_value):
+  def extract_values_for_var_ids(self, type_value):
     return
 
 
@@ -177,23 +170,23 @@ class PTypeVar(PType):
 
   def __init__(self):
     super().__init__("TypeVar")
-    self.type_id = -1
+    self.var_id = -1
 
-  def set_type_id(self, type_id):
-    self.type_id = type_id
+  def set_var_id(self, var_id):
+    self.var_id = var_id
 
   def find_common_subtree(self, other):
     return self
 
-  def assign_type_ids(self, type_ids, location_id, fresh_variable_generator):
-    self.type_id = fresh_variable_generator.get_fresh_id(location_id)
-    type_ids.append(self.type_id)
+  def assign_var_ids(self, var_ids, location_id, fresh_var_generator):
+    self.var_id = fresh_var_generator.get_fresh_id(location_id)
+    var_ids.append(self.var_id)
 
-  def extract_values_for_type_ids(self, type_value):
+  def extract_values_for_var_ids(self, type_value):
     return [type_value]
 
   def __repr__(self):
-    return f"{self.name}({self.type_id})"
+    return f"{self.name}({self.var_id})"
 
 class PTupleType(PType):
   @classmethod
@@ -214,14 +207,14 @@ class PTupleType(PType):
     else:
       return PTupleType.get_ptype([c1.find_common_subtree(c2) for c1, c2 in zip(self.element_types, other.element_types)])
 
-  def assign_type_ids(self, type_ids, location_id, fresh_variable_generator):
+  def assign_var_ids(self, var_ids, location_id, fresh_var_generator):
     for c1 in self.element_types:
-      c1.assign_type_ids(type_ids, location_id, fresh_variable_generator)
+      c1.assign_var_ids(var_ids, location_id, fresh_var_generator)
 
-  def extract_values_for_type_ids(self, type_value):
+  def extract_values_for_var_ids(self, type_value):
     ret = []
     for c1 in self.element_types:
-      ret.extend(c1.extract_values_for_type_ids(type_value))
+      ret.extend(c1.extract_values_for_var_ids(type_value))
     return ret
 
   def __repr__(self):
@@ -253,11 +246,11 @@ class PListType(PType):
     else:
       return PListType.get_ptype(self.element_type.find_common_subtree(other.element_type))
 
-  def assign_type_ids(self, type_ids, location_id, fresh_variable_generator):
-    self.element_type.assign_type_ids(type_ids, location_id, fresh_variable_generator)
+  def assign_var_ids(self, var_ids, location_id, fresh_var_generator):
+    self.element_type.assign_var_ids(var_ids, location_id, fresh_var_generator)
 
-  def extract_values_for_type_ids(self, type_value):
-    return self.element_type.extract_values_for_type_ids(type_value)
+  def extract_values_for_var_ids(self, type_value):
+    return self.element_type.extract_values_for_var_ids(type_value)
 
   def __repr__(self):
     self.repr = f"{self.name}[{self.element_type}]"
@@ -281,11 +274,11 @@ class PSetType(PType):
     else:
       return PSetType.get_ptype(self.element_type.find_common_subtree(other.element_type))
 
-  def assign_type_ids(self, type_ids, location_id, fresh_variable_generator):
-    self.element_type.assign_type_ids(type_ids, location_id, fresh_variable_generator)
+  def assign_var_ids(self, var_ids, location_id, fresh_var_generator):
+    self.element_type.assign_var_ids(var_ids, location_id, fresh_var_generator)
 
-  def extract_values_for_type_ids(self, type_value):
-    return self.element_type.extract_values_for_type_ids(type_value)
+  def extract_values_for_var_ids(self, type_value):
+    return self.element_type.extract_values_for_var_ids(type_value)
 
   def __repr__(self):
     self.repr = f"{self.name}[{self.element_type}]"
@@ -309,13 +302,13 @@ class PDictType(PType):
     else:
       return PDictType.get_ptype(self.key_type.find_common_subtree(other.key_type), self.value_type.find_common_subtree(other.value_type))
 
-  def assign_type_ids(self, type_ids, location_id, fresh_variable_generator):
-    self.key_type.assign_type_ids(type_ids, location_id, fresh_variable_generator)
-    self.value_type.assign_type_ids(type_ids, location_id, fresh_variable_generator)
+  def assign_var_ids(self, var_ids, location_id, fresh_var_generator):
+    self.key_type.assign_var_ids(var_ids, location_id, fresh_var_generator)
+    self.value_type.assign_var_ids(var_ids, location_id, fresh_var_generator)
 
-  def extract_values_for_type_ids(self, type_value):
-    return self.key_type.extract_values_for_type_ids(type_value) + \
-      self.value_type.extract_values_for_type_ids(type_value)
+  def extract_values_for_var_ids(self, type_value):
+    return self.key_type.extract_values_for_var_ids(type_value) + \
+      self.value_type.extract_values_for_var_ids(type_value)
 
   def __repr__(self):
     self.repr = f"{self.name}[{self.key_type}, {self.value_type}]"
@@ -333,7 +326,7 @@ class PNominalType(PType):
       cls.name_to_ptype[name] = ret
       return ret
 
-  def extract_values_for_type_ids(self, type_value):
+  def extract_values_for_var_ids(self, type_value):
     return []
 
   def __init__(self, name):
@@ -347,7 +340,7 @@ class PNominalType(PType):
     else:
       return PTypeVar.get_ptype()
 
-  def assign_type_ids(self, type_ids, location_id, fresh_variable_generator):
+  def assign_var_ids(self, var_ids, location_id, fresh_var_generator):
     pass
 
   def __repr__(self):
@@ -385,12 +378,12 @@ class PUnionType(PType):
     else:
       return PUnionType.get_ptype([c1.find_common_subtree(c2) for c1, c2 in zip(self.possible_types, other.possible_types)])
 
-  def assign_type_ids(self, type_ids, location_id, fresh_variable_generator):
+  def assign_var_ids(self, var_ids, location_id, fresh_var_generator):
     for c in self.possible_types:
-      c.assign_type_ids(type_ids, location_id, fresh_variable_generator)
+      c.assign_var_ids(var_ids, location_id, fresh_var_generator)
 
-  def extract_values_for_type_ids(self, type_value):
-    return [c for l in self.possible_types for c in l.extract_values_for_type_ids(type_value)]
+  def extract_values_for_var_ids(self, type_value):
+    return [c for l in self.possible_types for c in l.extract_values_for_var_ids(type_value)]
 
   def __repr__(self):
     tmp = [repr(c) for c in self.possible_types]
@@ -472,32 +465,32 @@ def process_termination():
 
   type_utils = PythonGenericTypeInferenceUtils()
   type_inference = TypeInference(type_utils)
-  type_inference.create_type_ids_and_global_state(record_list)
+  type_inference.create_var_ids_and_global_state(record_list)
   type_inference.create_states(record_list)
 
   (
       location_id_to_state_list,
       global_state,
-      location_id_to_type_ids_and_values,
+      location_id_to_var_ids_and_values,
       location_to_id,
-      fresh_vars,
-      type_id_to_annotation,
+      fresh_var_generator,
+      var_id_to_annotation,
       location_id_to_name,
-      method_id_to_type_ids,
+      method_id_to_var_ids,
   ) = type_inference.get_data()
 
-  for k, v in location_id_to_type_ids_and_values.items():
+  for k, v in location_id_to_var_ids_and_values.items():
     print(f"{k}{location_to_id.get_key(k)} : {v}")
   solution = type_inference.find_solution()
   print(solution)
-#   print(type_id_to_annotation)
-#   type_utils.replace_type_ids_with_names(solution, type_id_to_annotation)
+#   print(var_id_to_annotation)
+#   type_utils.replace_var_ids_with_names(solution, var_id_to_annotation)
 #   type_inference.print_solution(solution)
 #
 #   annotations_by_line_by_module: dict[str, dict[int, list]] = (
 #       collections.defaultdict(lambda: collections.defaultdict(list))
 #   )
-#   for location_id, type_and_values in location_id_to_type_ids_and_values.items():
+#   for location_id, vars_and_values in location_id_to_var_ids_and_values.items():
 #     module_name, method_id, instruction_id, line_number, opcode = (
 #         location_to_id.get_key(location_id)
 #     )
@@ -505,8 +498,8 @@ def process_termination():
 #     del method_id, instruction_id
 #     line_number = int(line_number)
 #
-#     symbolic_shape = [solution[x] for x in type_and_values.type_ids]
-#     concrete_shapes = type_and_values.values
+#     symbolic_shape = [solution[x] for x in vars_and_values.var_ids]
+#     concrete_shapes = vars_and_values.values
 #
 #     annotation = Annotation(
 #         opcode=opcode,
