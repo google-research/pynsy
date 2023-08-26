@@ -25,7 +25,6 @@ from rich.text import Text
 from pynsy.analyses import util
 from pynsy.instrumentation import logging_utils
 from pynsy.instrumentation import module_loader
-from pynsy.instrumentation import util as instrumentation_util
 
 log = logging_utils.logger(__name__)
 print_panel = logging_utils.print_panel
@@ -35,7 +34,6 @@ record_list = []
 
 now = datetime.now()
 timestamp = int(round(now.timestamp()))
-keys = ["module_name", "method_id", "instruction_id", "lineno", "type"]
 
 
 @dataclasses.dataclass
@@ -59,7 +57,7 @@ class Annotation:
   def to_string(self, indent: int = 0, *, color: bool = True) -> str:
     out = io.StringIO()
     out.write(" " * indent)
-    name = get_name(self.opcode, self.name)
+    name = CommonUtils.get_nickname(self.opcode, self.name)
     concrete_shape_str = " ".join(str(x) for x in self.concrete_shape)
     msg = f"# ↳ {name}: {self.symbolic_shape} · {concrete_shape_str}"
     out.write(msg)
@@ -69,45 +67,6 @@ class Annotation:
     return s
 
 
-nicknames = {
-    "UNARY_POSITIVE": "+",
-    "UNARY_NEGATIVE": "-",
-    "UNARY_NOT": "not",
-    "UNARY_INVERT": "~",
-    "GET_ITER": "iter",
-    "GET_YIELD_FROM_ITER": "yield",
-    "BINARY_POWER": "**",
-    "BINARY_MULTIPLY": "*",
-    "BINARY_MATRIX_MULTIPLY": "@",
-    "BINARY_FLOOR_DIVIDE": "//",
-    "BINARY_TRUE_DIVIDE": "/",
-    "BINARY_MODULO": "%",
-    "BINARY_ADD": "+",
-    "BINARY_SUBTRACT": "-",
-    "BINARY_SUBSCR": "__getitem__",
-    "BINARY_LSHIFT": "<<",
-    "BINARY_RSHIFT": ">>",
-    "BINARY_AND": "&",
-    "BINARY_XOR": "^",
-    "BINARY_OR": "|",
-    "COMPARE_OP": "cmp",
-    "INPLACE_POWER": "**=",
-    "INPLACE_MULTIPLY": "*=",
-    "INPLACE_MATRIX_MULTIPLY": "@=",
-    "INPLACE_FLOOR_DIVIDE": "//=",
-    "INPLACE_TRUE_DIVIDE": "/=",
-    "INPLACE_MODULO": "%=",
-    "INPLACE_ADD": "+=",
-    "INPLACE_SUBTRACT": "-=",
-    "INPLACE_LSHIFT": "<<=",
-    "INPLACE_RSHIFT": ">>=",
-    "INPLACE_AND": "&=",
-    "INPLACE_XOR": "^=",
-    "INPLACE_OR": "|=",
-    "RETURN_FUNCTION": "<call>",
-    "RETURN_FUNCTION_KW": "<call>",
-    "RETURN_METHOD": "<call>",
-}
 
 
 class UniqueIdForKey:
@@ -134,6 +93,7 @@ class FreshVarId:
 
   def __init__(self):
     self.var_id_to_value = list()
+    self.var_id_annotation = None
 
   def get_fresh_id(self, value):
     self.var_id_to_value.append(value)
@@ -144,6 +104,27 @@ class FreshVarId:
 
   def num_ids(self):
     return len(self.var_id_to_value)
+
+  def set_annotations(self, equivalence_classes, name_space, formatter):
+    var_id_to_name = [None] * self.num_ids()
+    for i, s in enumerate(equivalence_classes):
+      done = False
+      if s is not None:
+        for n in name_space:
+          if n in s:
+            done = True
+            for e in s:
+              var_id_to_name[e] = name_space[n]
+            break
+        if not done:
+          min_e = min(s)
+          for e in s:
+            var_id_to_name[e] = formatter(min_e)
+    self.var_id_to_name = var_id_to_name
+
+  def get_annotation(self, id):
+    return self.var_id_to_name[id]
+
 
 
 
@@ -178,6 +159,80 @@ class Template:
     return TemplateInstance(self, vars)
 
 
+class CommonUtils:
+  nicknames = {
+      "UNARY_POSITIVE": "+",
+      "UNARY_NEGATIVE": "-",
+      "UNARY_NOT": "not",
+      "UNARY_INVERT": "~",
+      "GET_ITER": "iter",
+      "GET_YIELD_FROM_ITER": "yield",
+      "BINARY_POWER": "**",
+      "BINARY_MULTIPLY": "*",
+      "BINARY_MATRIX_MULTIPLY": "@",
+      "BINARY_FLOOR_DIVIDE": "//",
+      "BINARY_TRUE_DIVIDE": "/",
+      "BINARY_MODULO": "%",
+      "BINARY_ADD": "+",
+      "BINARY_SUBTRACT": "-",
+      "BINARY_SUBSCR": "__getitem__",
+      "BINARY_LSHIFT": "<<",
+      "BINARY_RSHIFT": ">>",
+      "BINARY_AND": "&",
+      "BINARY_XOR": "^",
+      "BINARY_OR": "|",
+      "COMPARE_OP": "cmp",
+      "INPLACE_POWER": "**=",
+      "INPLACE_MULTIPLY": "*=",
+      "INPLACE_MATRIX_MULTIPLY": "@=",
+      "INPLACE_FLOOR_DIVIDE": "//=",
+      "INPLACE_TRUE_DIVIDE": "/=",
+      "INPLACE_MODULO": "%=",
+      "INPLACE_ADD": "+=",
+      "INPLACE_SUBTRACT": "-=",
+      "INPLACE_LSHIFT": "<<=",
+      "INPLACE_RSHIFT": ">>=",
+      "INPLACE_AND": "&=",
+      "INPLACE_XOR": "^=",
+      "INPLACE_OR": "|=",
+      "RETURN_FUNCTION": "<call>",
+      "RETURN_FUNCTION_KW": "<call>",
+      "RETURN_METHOD": "<call>",
+  }
+
+  @classmethod
+  def get_equivalence_classes(cls, solution):
+    equivalence_classes = [{i} for i in range(len(solution))]
+    for i, template_instance in enumerate(solution):
+      if template_instance.get_name() == "=":
+        lhs = i
+        rhs = template_instance.vars[0]
+        lhs_index = None
+        rhs_index = None
+        for j, s in enumerate(equivalence_classes):
+          if s is not None and lhs in s:
+            lhs_index = j
+          if s is not None and rhs in s:
+            rhs_index = j
+        if lhs_index != rhs_index:
+          lhs_index, rhs_index = min(lhs_index, rhs_index), max(
+              lhs_index, rhs_index
+          )
+          equivalence_classes[lhs_index].update(equivalence_classes[rhs_index])
+          equivalence_classes[rhs_index] = None
+    return equivalence_classes
+
+  @classmethod
+  def get_nickname(cls, opcode, name):
+    if isinstance(name, str) and name:
+      return name
+    else:
+      return cls.nicknames.get(opcode, f"<{opcode}>")
+
+  @classmethod
+  def count_leading_spaces(cls, s: str) -> int:
+    return len(s) - len(s.lstrip(" "))
+
 
 
 class TensorShapeInferenceUtils:
@@ -207,30 +262,6 @@ class TensorShapeInferenceUtils:
   def is_shape(self, s):
     return isinstance(s, list) or isinstance(s, tuple)
 
-  def get_var_to_name(self, equivalence_classes, name_space):
-    var_to_name = dict()
-    for i, s in enumerate(equivalence_classes):
-      done = False
-      if s is not None:
-        for n in name_space:
-          if n in s:
-            done = True
-            for e in s:
-              var_to_name[e] = name_space[n]
-            break
-        if not done:
-          min_e = min(s)
-          for e in s:
-            var_to_name[e] = f"d{min_e}"
-    return var_to_name
-
-
-  def replace_var_ids_with_names(self, solution, var_id_to_annotation):
-    equivalence_classes = get_equivalence_classes(solution)
-    var_to_name = self.get_var_to_name(equivalence_classes, var_id_to_annotation)
-    for i, v in enumerate(solution):
-      v.vars = [var_to_name[i] for i in v.vars]
-
   def get_var_ids(self, abs, vars, location_id):
     var_ids = []
     for _ in abs:
@@ -255,39 +286,13 @@ class TensorShapeInferenceUtils:
       if len(vars_and_values.abstraction_set) == 1:
         global_state.update(zip(vars_and_values.var_ids, value))
 
-
-
-def get_name(opcode, name):
-  if isinstance(name, str) and name:
-    return name
-  else:
-    return nicknames.get(opcode, f"<{opcode}>")
-
-
-def count_leading_spaces(s: str) -> int:
-  return len(s) - len(s.lstrip(" "))
-
-def get_equivalence_classes(solution):
-  equivalence_classes = [{i} for i in range(len(solution))]
-  for i, template_instance in enumerate(solution):
-    if template_instance.get_name() == "=":
-      lhs = i
-      rhs = template_instance.vars[0]
-      lhs_index = None
-      rhs_index = None
-      for j, s in enumerate(equivalence_classes):
-        if s is not None and lhs in s:
-          lhs_index = j
-        if s is not None and rhs in s:
-          rhs_index = j
-      if lhs_index != rhs_index:
-        lhs_index, rhs_index = min(lhs_index, rhs_index), max(
-            lhs_index, rhs_index
+  def print_solution(self, location_id_to_var_ids_and_values, location_to_id, fresh_var_generator, solution, identity_template):
+    for location_id, vars_and_values in location_id_to_var_ids_and_values.items():
+      if all(solution[x].get_template() != identity_template for x in vars_and_values.var_ids):
+        print(
+            f"{location_id}{location_to_id.get_key(location_id)} :"
+            f" {[fresh_var_generator.get_annotation(x) for x in vars_and_values.var_ids]}"
         )
-        equivalence_classes[lhs_index].update(equivalence_classes[rhs_index])
-        equivalence_classes[rhs_index] = None
-  return equivalence_classes
-
 
 
 
@@ -298,9 +303,6 @@ def abstraction(obj):
     except:
       return True, None
   return True, None
-
-
-
 
 
 @dataclasses.dataclass
@@ -322,10 +324,10 @@ class VarIdsAndValues:
     return self.values[-1]
 
 
-
 class TypeInference:
 
   def __init__(self, type_utils):
+    self.keys = ["module_name", "method_id", "instruction_id", "lineno", "type"]
     self.location_id_to_state_list = dict()
     self.location_id_to_var_ids_and_values = dict()
     self.location_to_id = UniqueIdForKey()
@@ -363,7 +365,7 @@ class TypeInference:
       row = record_list[i]
       value = row["result_and_args"][0]
       if self.type_utils.is_type_value(value):
-        location = tuple([row[x] for x in keys])
+        location = tuple([row[x] for x in self.keys])
         location_id = self.location_to_id.get_id(location)
         if location_id not in self.location_id_to_var_ids_and_values:
           vars_and_values = VarIdsAndValues()
@@ -386,7 +388,7 @@ class TypeInference:
         name = row["name"]
       elif "function_name" in row:
         name = str(row["function_name"]) + "()"
-      name = get_name(row["type"], name)
+      name = CommonUtils.get_nickname(row["type"], name)
 
       if row["type"].startswith("RETURN_") and not record_list[i - 1][
           "type"
@@ -401,7 +403,7 @@ class TypeInference:
         state = {key: state[key] for key in state if key not in var_ids_in_method}
       value = row["result_and_args"][0]
       if self.type_utils.is_type_value(value):
-        location = tuple([row[x] for x in keys])
+        location = tuple([row[x] for x in self.keys])
         location_id = self.location_to_id.get_id(location)
         self.location_id_to_name[location_id] = name
         var_ids = self.location_id_to_var_ids_and_values[location_id].var_ids
@@ -447,15 +449,6 @@ class TypeInference:
               break
     return solution
 
-  def print_solution(self, solution):
-    for location_id, vars_and_values in self.location_id_to_var_ids_and_values.items():
-      if all(solution[x].get_template() != self.identity_template for x in vars_and_values.var_ids):
-        print(
-            f"{location_id}{self.location_to_id.get_key(location_id)} :"
-            f" {[solution[x] for x in vars_and_values.var_ids]}"
-        )
-
-
 
 
 
@@ -494,8 +487,9 @@ def process_termination():
     print(f"{k}{location_to_id.get_key(k)} : {v}")
   solution = type_inference.find_solution()
   print(var_id_to_annotation)
-  type_utils.replace_var_ids_with_names(solution, var_id_to_annotation)
-  type_inference.print_solution(solution)
+  equivalence_classes = CommonUtils.get_equivalence_classes(solution)
+  fresh_var_generator.set_annotations(equivalence_classes, var_id_to_annotation, lambda x: f"d{x}")
+  type_utils.print_solution(location_id_to_var_ids_and_values, location_to_id, fresh_var_generator, solution, type_inference.identity_template)
 
   annotations_by_line_by_module: dict[str, dict[int, list]] = (
       collections.defaultdict(lambda: collections.defaultdict(list))
@@ -508,7 +502,7 @@ def process_termination():
     del method_id, instruction_id
     line_number = int(line_number)
 
-    symbolic_shape = [solution[x] for x in vars_and_values.var_ids]
+    symbolic_shape = [fresh_var_generator.get_annotation(x) for x in vars_and_values.var_ids]
     concrete_shapes = vars_and_values.values
 
     annotation = Annotation(
@@ -554,7 +548,7 @@ def process_termination():
       last_line_number = line_number
 
       annotated_line = module_lines[end_index]
-      indent = count_leading_spaces(annotated_line)
+      indent = CommonUtils.count_leading_spaces(annotated_line)
       annotations = annotations_by_line[line_number]
       for annotation in annotations:
         s = annotation.to_string(indent=indent, color=True)
@@ -587,7 +581,7 @@ def process_termination():
       for line_number, annotations in annotations_by_line.items():
         s = []
         for annotation in annotations:
-          name = get_name(annotation.opcode, annotation.name)
+          name = CommonUtils.get_nickname(annotation.opcode, annotation.name)
           shape = tuple(annotation.symbolic_shape)
           concrete = annotation.concrete_shape
           s.append((name, shape, concrete))
