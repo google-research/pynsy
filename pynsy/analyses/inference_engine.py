@@ -236,6 +236,7 @@ class AbstractState:
     self.location_to_id = UniqueIdForKey()
     self.var_id_to_annotation = dict()
     self.location_id_to_name = dict()
+    self.location_id_to_record_list_index = dict()
     self.fresh_var_generator = FreshVarIdGenerator()
     self.global_state = dict()
     self.method_id_to_var_ids = dict()
@@ -250,7 +251,7 @@ class AbstractState:
         self.fresh_var_generator,
         self.var_id_to_annotation,
         self.location_id_to_name,
-        self.method_id_to_var_ids,
+        self.location_id_to_record_list_index,
     )
 
   def get_var_ids_in_method(self, method_id):
@@ -264,7 +265,7 @@ class AbstractState:
     for i in range(rlen):
       row = record_list[i]
       value = row["result_and_args"][0]
-      if self.type_utils.is_type_value(value):
+      if self.type_utils.to_consider(value):
         location = tuple([row[x] for x in self.keys])
         location_id = self.location_to_id.get_id(location)
         if location_id not in self.location_id_to_var_ids_and_values:
@@ -308,10 +309,11 @@ class AbstractState:
           {key: state[key] for key in state if key not in var_ids_in_method}
 
       value = row["result_and_args"][0]
-      if self.type_utils.is_type_value(value):
+      if self.type_utils.to_consider(value):
         location = tuple([row[x] for x in self.keys])
         location_id = self.location_to_id.get_id(location)
         self.location_id_to_name[location_id] = name
+        self.location_id_to_record_list_index[location_id] = i
         var_ids = self.location_id_to_var_ids_and_values[location_id].var_ids
         self.location_id_to_var_ids_and_values[location_id].add_value(value)
 

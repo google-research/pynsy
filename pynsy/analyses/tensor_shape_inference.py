@@ -87,7 +87,7 @@ class TensorShapeInferenceUtils:
 
 
   @classmethod
-  def is_type_value(cls, value):
+  def to_consider(cls, value):
     return cls._is_shape(value["abs"])
 
   @classmethod
@@ -188,7 +188,7 @@ def process_termination():
       fresh_var_generator,
       var_id_to_annotation,
       location_id_to_name,
-      method_id_to_var_ids,
+      location_id_to_record_list_index,
   ) = abstract_state.get_data()
 
   for k, v in location_id_to_var_ids_and_values.items():
