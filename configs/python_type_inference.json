@@ -1,12 +1,10 @@
 {
   "analyzers": [
-    "pynsy.analyses.shape_inference"
+    "pynsy.analyses.python_type_inference"
   ],
   "instrumentation_rules": {
     "include": [
-      "pynsy.demos.",
-      "optax.",
-      "haiku."
+      "pynsy.demos."
     ],
     "exclude": ["pynsy."]
   }
