@@ -48,7 +48,7 @@ class EvaluationExample:
         '-m',
         'pynsy.main',
         '--config',
-        'configs/shape_inference.toml',
+        'configs/tensor_shape_inference.toml',
         '--module',
         module_name,
         '--',

@@ -35,8 +35,8 @@ python3 -m pynsy.main --config configs/lint.json --module pynsy.demos.key_in_lis
 ```
 
 ```bash
-# Run shape analysis on JAX MNIST.
-python3 -m pynsy.main --config configs/shape_inference.json --module pynsy.demos.mnist
+# Run tensor shape analysis on JAX MNIST.
+python3 -m pynsy.main --config configs/tensor_shape_inference.json --module pynsy.demos.mnist
 ```
 
 ```bash
@@ -77,7 +77,7 @@ Each record has the following keys:
 
 One can write a custom dynamic analysis for Python instructions by creating a
 Pynsy analysis class of the form
-[analyses/shape_inference.py](pynsy/analyses/shape_inference.py).
+[analyses/tensor_shape_inference.py](pynsy/analyses/tensor_shape_inference.py).
 
 An analysis should define the following functions:
 
