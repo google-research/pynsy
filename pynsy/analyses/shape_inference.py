@@ -89,7 +89,7 @@ class UniqueIdForKey:
     return self.id_to_key[id] if id < len(self.id_to_key) else None
 
 
-class FreshVarId:
+class FreshVarIdGenerator:
 
   def __init__(self):
     self.var_id_to_value = list()
@@ -236,8 +236,7 @@ class CommonUtils:
 
 
 class TensorShapeInferenceUtils:
-  def __init__(self):
-    self.templates = [
+  templates = [
         Template(
             "=",
             2,
@@ -256,37 +255,44 @@ class TensorShapeInferenceUtils:
     ]
 
 
-  def is_type_value(self, value):
-    return self.is_shape(value["abs"])
+  @classmethod
+  def is_type_value(cls, value):
+    return cls.is_shape(value["abs"])
 
-  def is_shape(self, s):
+  @classmethod
+  def is_shape(cls, s):
     return isinstance(s, list) or isinstance(s, tuple)
 
-  def get_var_ids(self, abs, vars, location_id):
+  @classmethod
+  def get_var_ids(cls, abs, vars, location_id):
     var_ids = []
     for _ in abs:
       var_ids.append(vars.get_fresh_id(location_id))
     return var_ids
 
-  def get_state_update(self, vars_and_values, value):
+  @classmethod
+  def get_state_update(cls, vars_and_values, value):
     var_ids = vars_and_values.var_ids
     state_update = dict(zip(var_ids, value["abs"]))
     return state_update
 
-  def set_annotation(self, row, var_ids, var_id_to_annotation):
+  @classmethod
+  def set_annotation(cls, row, var_ids, var_id_to_annotation):
     if "special" in row:
       names = row["special"]
       for var_id, name in zip(var_ids, names):
         var_id_to_annotation[var_id] = name
 
-  def set_var_ids(self, location_id_to_vars_and_values, fresh_var_generator, global_state):
+  @classmethod
+  def create_var_ids(cls, location_id_to_vars_and_values, fresh_var_generator, global_state):
     for location_id, vars_and_values in location_id_to_vars_and_values.items():
       value = next(iter(vars_and_values.abstraction_set))
-      vars_and_values.var_ids = self.get_var_ids(value, fresh_var_generator, location_id)
+      vars_and_values.var_ids = cls.get_var_ids(value, fresh_var_generator, location_id)
       if len(vars_and_values.abstraction_set) == 1:
         global_state.update(zip(vars_and_values.var_ids, value))
 
-  def print_solution(self, location_id_to_var_ids_and_values, location_to_id, fresh_var_generator, solution, identity_template):
+  @classmethod
+  def print_solution(cls, location_id_to_var_ids_and_values, location_to_id, fresh_var_generator, solution, identity_template):
     for location_id, vars_and_values in location_id_to_var_ids_and_values.items():
       if all(solution[x].get_template() != identity_template for x in vars_and_values.var_ids):
         print(
@@ -324,7 +330,7 @@ class VarIdsAndValues:
     return self.values[-1]
 
 
-class TypeInference:
+class AbstractState:
 
   def __init__(self, type_utils):
     self.keys = ["module_name", "method_id", "instruction_id", "lineno", "type"]
@@ -333,7 +339,7 @@ class TypeInference:
     self.location_to_id = UniqueIdForKey()
     self.var_id_to_annotation = dict()
     self.location_id_to_name = dict()
-    self.fresh_var_generator = FreshVarId()
+    self.fresh_var_generator = FreshVarIdGenerator()
     self.global_state = dict()
     self.method_id_to_var_ids = dict()
     self.identity_template = Template(
@@ -373,10 +379,10 @@ class TypeInference:
           self.location_id_to_var_ids_and_values[location_id] = vars_and_values
         else:
           self.location_id_to_var_ids_and_values[location_id].add_to_abstraction_set(value["abs"])
-    self.type_utils.set_var_ids(self.location_id_to_var_ids_and_values, self.fresh_var_generator, self.global_state)
+    self.type_utils.create_var_ids(self.location_id_to_var_ids_and_values, self.fresh_var_generator, self.global_state)
 
 
-  def create_states(self, record_list):
+  def create_local_states(self, record_list):
     state_stack = []
     state = dict()
 
@@ -467,10 +473,9 @@ def process_termination():
   log(f"Saving raw data to {log_file}.")
   pd.DataFrame.to_csv(df, log_file)
 
-  type_utils = TensorShapeInferenceUtils()
-  type_inference = TypeInference(type_utils)
-  type_inference.create_var_ids_and_global_state(record_list)
-  type_inference.create_states(record_list)
+  abstract_state = AbstractState(TensorShapeInferenceUtils)
+  abstract_state.create_var_ids_and_global_state(record_list)
+  abstract_state.create_local_states(record_list)
 
   (
       location_id_to_state_list,
@@ -481,15 +486,15 @@ def process_termination():
       var_id_to_annotation,
       location_id_to_name,
       method_id_to_var_ids,
-  ) = type_inference.get_data()
+  ) = abstract_state.get_data()
 
   for k, v in location_id_to_var_ids_and_values.items():
     print(f"{k}{location_to_id.get_key(k)} : {v}")
-  solution = type_inference.find_solution()
+  solution = abstract_state.find_solution()
   print(var_id_to_annotation)
   equivalence_classes = CommonUtils.get_equivalence_classes(solution)
   fresh_var_generator.set_annotations(equivalence_classes, var_id_to_annotation, lambda x: f"d{x}")
-  type_utils.print_solution(location_id_to_var_ids_and_values, location_to_id, fresh_var_generator, solution, type_inference.identity_template)
+  TensorShapeInferenceUtils.print_solution(location_id_to_var_ids_and_values, location_to_id, fresh_var_generator, solution, abstract_state.identity_template)
 
   annotations_by_line_by_module: dict[str, dict[int, list]] = (
       collections.defaultdict(lambda: collections.defaultdict(list))

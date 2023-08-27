@@ -23,7 +23,7 @@ import pandas as pd
 
 from pynsy.analyses import util
 from pynsy.instrumentation import logging_utils
-from pynsy.analyses.shape_inference import TypeInference, Template, CommonUtils
+from pynsy.analyses.shape_inference import AbstractState, Template, CommonUtils
 
 
 log = logging_utils.logger(__name__)
@@ -56,7 +56,7 @@ class Annotation:
   def to_string(self, indent: int = 0, *, color: bool = True) -> str:
     out = io.StringIO()
     out.write(" " * indent)
-    name = CommonUtils.get_name(self.opcode, self.name)
+    name = CommonUtils.get_nickname(self.opcode, self.name)
     concrete_shape_str = " ".join(str(x) for x in self.concrete_shape)
     msg = f"# ↳ {name}: {self.symbolic_shape} · {concrete_shape_str}"
     out.write(msg)
@@ -67,32 +67,34 @@ class Annotation:
 
 
 class PythonGenericTypeInferenceUtils:
-  def __init__(self):
-    self.templates = [
+  templates = [
         Template(
             "=",
             2,
             lambda state, vars: state.get(vars[0], None) == state.get(vars[1], None),
             lambda vars: vars[0],
-        ),
+        )
     ]
 
-
-  def is_type_value(self, value):
+  @classmethod
+  def is_type_value(cls, value):
     return isinstance(value["abs"], PType)
 
 
-  def get_state_update(self, vars_and_values, value):
+  @classmethod
+  def get_state_update(cls, vars_and_values, value):
     var_ids = vars_and_values.var_ids
     common_type_value = vars_and_values.common_type_value
     type_values = common_type_value.extract_values_for_var_ids(value["abs"])
     state_update = dict(zip(var_ids, type_values))
     return state_update
 
-  def set_annotation(self, row, var_ids, var_id_to_annotation):
+  @classmethod
+  def set_annotation(cls, row, var_ids, var_id_to_annotation):
     pass
 
-  def set_var_ids(self,
+  @classmethod
+  def create_var_ids(cls,
       location_id_to_vars_and_values,
       fresh_var_generator,
       global_state):
@@ -107,7 +109,8 @@ class PythonGenericTypeInferenceUtils:
       vars_and_values.var_ids = var_ids
       vars_and_values.common_type_value = common_type_value
 
-  def print_solution(self, location_id_to_var_ids_and_values, location_to_id, fresh_var_generator):
+  @classmethod
+  def print_solution(cls, location_id_to_var_ids_and_values, location_to_id, fresh_var_generator):
     for location_id, vars_and_values in location_id_to_var_ids_and_values.items():
       print(
           f"{location_id}{location_to_id.get_key(location_id)} :"
@@ -481,10 +484,9 @@ def process_termination():
   log(f"Saving raw data to {log_file}.")
   pd.DataFrame.to_csv(df, log_file)
 
-  type_utils = PythonGenericTypeInferenceUtils()
-  type_inference = TypeInference(type_utils)
-  type_inference.create_var_ids_and_global_state(record_list)
-  type_inference.create_states(record_list)
+  abstract_states = AbstractState(PythonGenericTypeInferenceUtils)
+  abstract_states.create_var_ids_and_global_state(record_list)
+  abstract_states.create_local_states(record_list)
 
   (
       location_id_to_state_list,
@@ -495,16 +497,16 @@ def process_termination():
       var_id_to_annotation,
       location_id_to_name,
       method_id_to_var_ids,
-  ) = type_inference.get_data()
+  ) = abstract_states.get_data()
 
   for k, v in location_id_to_var_ids_and_values.items():
     print(f"{k}{location_to_id.get_key(k)} : {v}")
-  solution = type_inference.find_solution()
+  solution = abstract_states.find_solution()
   equivalence_classes = CommonUtils.get_equivalence_classes(solution)
   fresh_var_generator.set_annotations(equivalence_classes, var_id_to_annotation, lambda x: f"T{x}")
 
   print(solution)
-  type_utils.print_solution(location_id_to_var_ids_and_values, location_to_id, fresh_var_generator)
+  PythonGenericTypeInferenceUtils.print_solution(location_id_to_var_ids_and_values, location_to_id, fresh_var_generator)
 
 #   print(var_id_to_annotation)
 #   type_utils.replace_var_ids_with_names(solution, var_id_to_annotation)
