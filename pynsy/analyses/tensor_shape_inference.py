@@ -16,12 +16,12 @@ import collections
 import dataclasses
 from datetime import datetime
 import io
-import itertools
 from typing import Any
 
 import pandas as pd
 from rich.text import Text
 
+from pynsy.analyses.inference_engine import AbstractState, Template, CommonUtils
 from pynsy.analyses import util
 from pynsy.instrumentation import logging_utils
 from pynsy.instrumentation import module_loader
@@ -66,175 +66,6 @@ class Annotation:
       s = styled(s, style="bold magenta")
     return s
 
-
-
-
-class UniqueIdForKey:
-
-  def __init__(self):
-    self.counter = 0
-    self.key_to_id = dict()
-    self.id_to_key = list()
-
-  def get_id(self, key):
-    if key in self.key_to_id:
-      return self.key_to_id[key]
-    else:
-      self.key_to_id[key] = self.counter
-      self.id_to_key.append(key)
-      self.counter += 1
-      return self.counter - 1
-
-  def get_key(self, id):
-    return self.id_to_key[id] if id < len(self.id_to_key) else None
-
-
-class FreshVarIdGenerator:
-
-  def __init__(self):
-    self.var_id_to_value = list()
-    self.var_id_annotation = None
-
-  def get_fresh_id(self, value):
-    self.var_id_to_value.append(value)
-    return len(self.var_id_to_value) - 1
-
-  def get_value(self, id):
-    return self.var_id_to_value[id]
-
-  def num_ids(self):
-    return len(self.var_id_to_value)
-
-  def set_annotations(self, equivalence_classes, name_space, formatter):
-    var_id_to_name = [None] * self.num_ids()
-    for i, s in enumerate(equivalence_classes):
-      done = False
-      if s is not None:
-        for n in name_space:
-          if n in s:
-            done = True
-            for e in s:
-              var_id_to_name[e] = name_space[n]
-            break
-        if not done:
-          min_e = min(s)
-          for e in s:
-            var_id_to_name[e] = formatter(min_e)
-    self.var_id_to_name = var_id_to_name
-
-  def get_annotation(self, id):
-    return self.var_id_to_name[id]
-
-
-
-
-class TemplateInstance:
-
-  def __init__(self, template, vars):
-    self.template = template
-    self.vars = vars
-
-  def get_name(self):
-    return self.template.get_name()
-
-  def get_template(self):
-    return self.template
-
-  def __repr__(self):
-    return f"{self.template.repr(self.vars)}"
-
-
-class Template:
-
-  def __init__(self, name, n_vars, predicate, repr):
-    self.name = name
-    self.n_vars = n_vars
-    self.predicate = predicate
-    self.repr = repr
-
-  def get_name(self):
-    return self.name
-
-  def get_instance(self, vars):
-    return TemplateInstance(self, vars)
-
-
-class CommonUtils:
-  nicknames = {
-      "UNARY_POSITIVE": "+",
-      "UNARY_NEGATIVE": "-",
-      "UNARY_NOT": "not",
-      "UNARY_INVERT": "~",
-      "GET_ITER": "iter",
-      "GET_YIELD_FROM_ITER": "yield",
-      "BINARY_POWER": "**",
-      "BINARY_MULTIPLY": "*",
-      "BINARY_MATRIX_MULTIPLY": "@",
-      "BINARY_FLOOR_DIVIDE": "//",
-      "BINARY_TRUE_DIVIDE": "/",
-      "BINARY_MODULO": "%",
-      "BINARY_ADD": "+",
-      "BINARY_SUBTRACT": "-",
-      "BINARY_SUBSCR": "__getitem__",
-      "BINARY_LSHIFT": "<<",
-      "BINARY_RSHIFT": ">>",
-      "BINARY_AND": "&",
-      "BINARY_XOR": "^",
-      "BINARY_OR": "|",
-      "COMPARE_OP": "cmp",
-      "INPLACE_POWER": "**=",
-      "INPLACE_MULTIPLY": "*=",
-      "INPLACE_MATRIX_MULTIPLY": "@=",
-      "INPLACE_FLOOR_DIVIDE": "//=",
-      "INPLACE_TRUE_DIVIDE": "/=",
-      "INPLACE_MODULO": "%=",
-      "INPLACE_ADD": "+=",
-      "INPLACE_SUBTRACT": "-=",
-      "INPLACE_LSHIFT": "<<=",
-      "INPLACE_RSHIFT": ">>=",
-      "INPLACE_AND": "&=",
-      "INPLACE_XOR": "^=",
-      "INPLACE_OR": "|=",
-      "RETURN_FUNCTION": "<call>",
-      "RETURN_FUNCTION_KW": "<call>",
-      "RETURN_METHOD": "<call>",
-  }
-
-  @classmethod
-  def get_equivalence_classes(cls, solution):
-    equivalence_classes = [{i} for i in range(len(solution))]
-    for i, template_instance in enumerate(solution):
-      if template_instance.get_name() == "=":
-        lhs = i
-        rhs = template_instance.vars[0]
-        lhs_index = None
-        rhs_index = None
-        for j, s in enumerate(equivalence_classes):
-          if s is not None and lhs in s:
-            lhs_index = j
-          if s is not None and rhs in s:
-            rhs_index = j
-        if lhs_index != rhs_index:
-          lhs_index, rhs_index = min(lhs_index, rhs_index), max(
-              lhs_index, rhs_index
-          )
-          equivalence_classes[lhs_index].update(equivalence_classes[rhs_index])
-          equivalence_classes[rhs_index] = None
-    return equivalence_classes
-
-  @classmethod
-  def get_nickname(cls, opcode, name):
-    if isinstance(name, str) and name:
-      return name
-    else:
-      return cls.nicknames.get(opcode, f"<{opcode}>")
-
-  @classmethod
-  def count_leading_spaces(cls, s: str) -> int:
-    return len(s) - len(s.lstrip(" "))
-
-
-
 class TensorShapeInferenceUtils:
   templates = [
         Template(
@@ -257,17 +88,17 @@ class TensorShapeInferenceUtils:
 
   @classmethod
   def is_type_value(cls, value):
-    return cls.is_shape(value["abs"])
+    return cls._is_shape(value["abs"])
 
   @classmethod
-  def is_shape(cls, s):
+  def _is_shape(cls, s):
     return isinstance(s, list) or isinstance(s, tuple)
 
   @classmethod
-  def get_var_ids(cls, abs, vars, location_id):
+  def create_var_ids(cls, abs, fresh_var_generator, location_id):
     var_ids = []
     for _ in abs:
-      var_ids.append(vars.get_fresh_id(location_id))
+      var_ids.append(fresh_var_generator.get_fresh_id(location_id))
     return var_ids
 
   @classmethod
@@ -284,20 +115,37 @@ class TensorShapeInferenceUtils:
         var_id_to_annotation[var_id] = name
 
   @classmethod
-  def create_var_ids(cls, location_id_to_vars_and_values, fresh_var_generator, global_state):
+  def create_var_ids_and_global_state(cls,
+      location_id_to_vars_and_values,
+      fresh_var_generator,
+      global_state):
     for location_id, vars_and_values in location_id_to_vars_and_values.items():
       value = next(iter(vars_and_values.abstraction_set))
-      vars_and_values.var_ids = cls.get_var_ids(value, fresh_var_generator, location_id)
+      vars_and_values.var_ids = cls.create_var_ids(
+          value,
+          fresh_var_generator,
+          location_id)
       if len(vars_and_values.abstraction_set) == 1:
         global_state.update(zip(vars_and_values.var_ids, value))
 
   @classmethod
-  def print_solution(cls, location_id_to_var_ids_and_values, location_to_id, fresh_var_generator, solution, identity_template):
-    for location_id, vars_and_values in location_id_to_var_ids_and_values.items():
-      if all(solution[x].get_template() != identity_template for x in vars_and_values.var_ids):
+  def print_solution(
+      cls,
+      location_id_to_var_ids_and_values,
+      location_to_id,
+      fresh_var_generator,
+      solution,
+      identity_template):
+    for location_id, vars_and_values in \
+        location_id_to_var_ids_and_values.items():
+      if all(
+          solution[x].get_template() !=
+          identity_template for x in vars_and_values.var_ids):
+        annotation = [fresh_var_generator.get_annotation(x)
+                      for x in vars_and_values.var_ids]
         print(
             f"{location_id}{location_to_id.get_key(location_id)} :"
-            f" {[fresh_var_generator.get_annotation(x) for x in vars_and_values.var_ids]}"
+            f" {annotation}"
         )
 
 
@@ -309,151 +157,6 @@ def abstraction(obj):
     except:
       return True, None
   return True, None
-
-
-@dataclasses.dataclass
-class VarIdsAndValues:
-  values: list[Any]
-
-  def __init__(self):
-    self.var_ids = None
-    self.values = []
-    self.abstraction_set = set()
-
-  def add_to_abstraction_set(self, value):
-    self.abstraction_set.add(value)
-
-  def add_value(self, value):
-    self.values.append(value)
-
-  def get_last_value(self):
-    return self.values[-1]
-
-
-class AbstractState:
-
-  def __init__(self, type_utils):
-    self.keys = ["module_name", "method_id", "instruction_id", "lineno", "type"]
-    self.location_id_to_state_list = dict()
-    self.location_id_to_var_ids_and_values = dict()
-    self.location_to_id = UniqueIdForKey()
-    self.var_id_to_annotation = dict()
-    self.location_id_to_name = dict()
-    self.fresh_var_generator = FreshVarIdGenerator()
-    self.global_state = dict()
-    self.method_id_to_var_ids = dict()
-    self.identity_template = Template(
-        "identity", 1, lambda state, vars: True, lambda vars: vars[0]
-    )
-    self.type_utils: TensorShapeInferenceUtils = type_utils
-
-  def get_data(self):
-    return (
-        self.location_id_to_state_list,
-        self.global_state,
-        self.location_id_to_var_ids_and_values,
-        self.location_to_id,
-        self.fresh_var_generator,
-        self.var_id_to_annotation,
-        self.location_id_to_name,
-        self.method_id_to_var_ids,
-    )
-
-  def get_var_ids_in_method(self, method_id):
-    if method_id not in self.method_id_to_var_ids:
-      self.method_id_to_var_ids[method_id] = set()
-    return self.method_id_to_var_ids[method_id]
-
-
-  def create_var_ids_and_global_state(self, record_list):
-    rlen = len(record_list)
-    for i in range(rlen):
-      row = record_list[i]
-      value = row["result_and_args"][0]
-      if self.type_utils.is_type_value(value):
-        location = tuple([row[x] for x in self.keys])
-        location_id = self.location_to_id.get_id(location)
-        if location_id not in self.location_id_to_var_ids_and_values:
-          vars_and_values = VarIdsAndValues()
-          vars_and_values.add_to_abstraction_set(value["abs"])
-          self.location_id_to_var_ids_and_values[location_id] = vars_and_values
-        else:
-          self.location_id_to_var_ids_and_values[location_id].add_to_abstraction_set(value["abs"])
-    self.type_utils.create_var_ids(self.location_id_to_var_ids_and_values, self.fresh_var_generator, self.global_state)
-
-
-  def create_local_states(self, record_list):
-    state_stack = []
-    state = dict()
-
-    rlen = len(record_list)
-    for i in range(rlen):
-      row = record_list[i]
-      name = ""
-      if "name" in row:
-        name = row["name"]
-      elif "function_name" in row:
-        name = str(row["function_name"]) + "()"
-      name = CommonUtils.get_nickname(row["type"], name)
-
-      if row["type"].startswith("RETURN_") and not record_list[i - 1][
-          "type"
-      ].startswith("CALL_"):
-        state = state_stack.pop()
-      if not row["type"].startswith("RETURN_") and record_list[i - 1][
-          "type"
-      ].startswith("CALL_"):
-        method_id = row["method_id"]
-        state_stack.append(state)
-        var_ids_in_method = self.get_var_ids_in_method(method_id)
-        state = {key: state[key] for key in state if key not in var_ids_in_method}
-      value = row["result_and_args"][0]
-      if self.type_utils.is_type_value(value):
-        location = tuple([row[x] for x in self.keys])
-        location_id = self.location_to_id.get_id(location)
-        self.location_id_to_name[location_id] = name
-        var_ids = self.location_id_to_var_ids_and_values[location_id].var_ids
-        self.location_id_to_var_ids_and_values[location_id].add_value(value)
-
-        method_id = row["method_id"]
-        var_ids_in_method = self.get_var_ids_in_method(method_id)
-        var_ids_in_method.update(var_ids)
-
-        self.type_utils.set_annotation(row, var_ids, self.var_id_to_annotation)
-
-        value = self.location_id_to_var_ids_and_values[location_id].get_last_value()
-        state_update = self.type_utils.get_state_update(self.location_id_to_var_ids_and_values[location_id], value)
-        state.update(state_update)
-        if location_id not in self.location_id_to_state_list:
-          self.location_id_to_state_list[location_id] = list()
-        self.location_id_to_state_list[location_id].append(dict(state))
-
-  def find_solution(self):
-    n_symbols = self.fresh_var_generator.num_ids()
-    solution = [
-        TemplateInstance(self.identity_template, [i]) for i in range(n_symbols)
-    ]
-    for location_id, state_list in self.location_id_to_state_list.items():
-      exclude = self.location_id_to_var_ids_and_values[location_id].var_ids
-      for template in self.type_utils.templates:
-        for var in exclude:
-          vars_list = [
-              i
-              for i in range(n_symbols)
-              if i != var and solution[i].get_template() == self.identity_template
-          ]
-          vars_iter = itertools.combinations(vars_list, template.n_vars - 1)
-          for vars in vars_iter:
-            vars = [var] + list(vars)
-            holds = True
-            for state in state_list:
-              if not template.predicate(state|self.global_state, vars):
-                holds = False
-                break
-            if holds:
-              solution[var] = template.get_instance(vars[1:])
-              break
-    return solution
 
 
 
@@ -490,11 +193,21 @@ def process_termination():
 
   for k, v in location_id_to_var_ids_and_values.items():
     print(f"{k}{location_to_id.get_key(k)} : {v}")
-  solution = abstract_state.find_solution()
+  solution = CommonUtils.find_solution(fresh_var_generator.num_ids(),
+                                       TensorShapeInferenceUtils.templates,
+                                       global_state,
+                                       location_id_to_state_list,
+                                       location_id_to_var_ids_and_values)
   print(var_id_to_annotation)
   equivalence_classes = CommonUtils.get_equivalence_classes(solution)
-  fresh_var_generator.set_annotations(equivalence_classes, var_id_to_annotation, lambda x: f"d{x}")
-  TensorShapeInferenceUtils.print_solution(location_id_to_var_ids_and_values, location_to_id, fresh_var_generator, solution, abstract_state.identity_template)
+  fresh_var_generator.set_annotations(equivalence_classes,
+                                      var_id_to_annotation,
+                                      lambda x: f"d{x}")
+  TensorShapeInferenceUtils.print_solution(location_id_to_var_ids_and_values,
+                                           location_to_id,
+                                           fresh_var_generator,
+                                           solution,
+                                           CommonUtils.identity_template)
 
   annotations_by_line_by_module: dict[str, dict[int, list]] = (
       collections.defaultdict(lambda: collections.defaultdict(list))
@@ -507,7 +220,8 @@ def process_termination():
     del method_id, instruction_id
     line_number = int(line_number)
 
-    symbolic_shape = [fresh_var_generator.get_annotation(x) for x in vars_and_values.var_ids]
+    symbolic_shape = \
+      [fresh_var_generator.get_annotation(x) for x in vars_and_values.var_ids]
     concrete_shapes = vars_and_values.values
 
     annotation = Annotation(
@@ -576,7 +290,10 @@ def process_termination():
       out.write(f"# Original file: {module_path}\n\n")
       out.write(annotated_source)
 
-  annotations_file = util.get_output_path("tensor_shape_inference", "annotations.txt")
+  annotations_file = util.get_output_path(
+      "tensor_shape_inference",
+      "annotations.txt"
+  )
   with open(annotations_file, "w") as out:
     log(f"Saving annotations to {annotations_file}.")
     for (
