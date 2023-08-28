@@ -1,5 +1,5 @@
 import unittest
-from pynsy.analyses.python_type_inference import *
+from pynsy.type_inference.python_type_inference import *
 
 class A:
   pass

@@ -21,7 +21,7 @@ from typing import Any
 import pandas as pd
 from rich.text import Text
 
-from pynsy.analyses.inference_engine import AbstractState, Template, CommonUtils
+from pynsy.type_inference.inference_engine import AbstractState, Template, CommonUtils
 from pynsy.analyses import util
 from pynsy.instrumentation import logging_utils
 from pynsy.instrumentation import module_loader

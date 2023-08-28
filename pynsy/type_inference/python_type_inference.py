@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections
 import dataclasses
 from datetime import datetime
 import io
@@ -20,11 +19,10 @@ from typing import Any
 from abc import ABC, abstractmethod
 
 import pandas as pd
-from dill.pointers import children
 
 from pynsy.analyses import util
 from pynsy.instrumentation import logging_utils
-from pynsy.analyses.inference_engine import AbstractState, Template, CommonUtils
+from pynsy.type_inference.inference_engine import AbstractState, Template, CommonUtils
 
 
 log = logging_utils.logger(__name__)

@@ -25,7 +25,7 @@ import jax.numpy as jnp
 from jax.scipy.special import logsumexp
 import numpy.random as npr
 
-import pynsy.analyses.tensor_shape_inference as shaper
+import pynsy.type_inference.tensor_shape_inference as shaper
 from pynsy.demos import datasets
 
 

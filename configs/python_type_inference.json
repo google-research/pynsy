@@ -1,6 +1,6 @@
 {
   "analyzers": [
-    "pynsy.analyses.python_type_inference"
+    "pynsy.type_inference.python_type_inference"
   ],
   "instrumentation_rules": {
     "include": [

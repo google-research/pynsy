@@ -77,7 +77,7 @@ Each record has the following keys:
 
 One can write a custom dynamic analysis for Python instructions by creating a
 Pynsy analysis class of the form
-[analyses/tensor_shape_inference.py](pynsy/analyses/tensor_shape_inference.py).
+[analyses/tensor_shape_inference.py](pynsy/type_inference/tensor_shape_inference.py).
 
 An analysis should define the following functions:
 

@@ -1,5 +1,5 @@
 analyzers = [
-  "pynsy.analyses.tensor_shape_inference"
+  "pynsy.type_inference.tensor_shape_inference"
 ]
 
 [instrumentation_rules]
