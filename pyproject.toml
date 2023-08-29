@@ -1,0 +1,86 @@
+[project]
+name = "pynsy"
+description = "A Python analysis framework."
+readme = "README.md"
+requires-python = ">=3.7"
+license = {file = "LICENSE"}
+authors = [{name = "Pynsy authors", email="pynsy-dev@google.com"}]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "License :: OSI Approved :: Apache Software License",
+    "Intended Audience :: Science/Research",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+keywords = []
+
+# pip dependencies of the project.
+dependencies = [
+    "absl-py",
+    "bytecode",
+    "config",
+    "jax",
+    "jaxlib",
+    "numpy>=1.22",
+    "pandas",
+    "rich",
+    "toml",
+]
+
+# `version` is automatically set by flit to use `my_project.__version__`
+dynamic = ["version"]
+
+[project.urls]
+homepage = "https://github.com/google-research/pynsy"
+repository = "https://github.com/google-research/pynsy"
+changelog = "https://github.com/google-research/pynsy/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+# Development deps (unittest, linting, formating,...)
+# Installed through `pip install -e .[dev]`
+dev = [
+    "pytest",
+    "pytest-xdist",
+    "pylint>=2.6.0",
+    "pyink",
+
+    # Evaluation
+    "fire",
+
+    # Haiku
+    "bsuite@git+https://github.com/deepmind/bsuite.git",
+    # "optax@git+https://github.com/deepmind/optax.git",
+    "optax",
+    "rlax@git+https://github.com/deepmind/rlax.git",
+    "dm-env>=1.2",
+    "dm-tree>=0.1.1",
+    "packaging>=20.9",
+    "tensorflow-datasets>=4.2.0",
+    "tensorflow>=2.4.0",
+
+    # Flax
+    "flax[testing]",
+
+    # PyTorch
+    "torch",
+    "torchvision",
+    "gym",
+    "pygame",
+]
+
+[tool.pyink]
+# Formatting configuration to follow Google style-guide
+line-length = 80
+preview = true
+pyink-indentation = 2
+pyink-use-majority-quotes = true
+
+[build-system]
+requires = ["flit_core >=3.8,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.flit.sdist]
+exclude = [
+  # Do not release tests files on PyPI
+  "**/*_test.py",
+]

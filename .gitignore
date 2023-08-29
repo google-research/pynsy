@@ -1,0 +1,39 @@
+# Compiled Python modules
+*.pyc
+
+# Byte-compiled
+_pycache__/
+.cache/
+
+# Poetry, setuptools, PyPI distribution artifacts
+/*.egg-info
+.eggs/
+build/
+dist/
+poetry.lock
+
+# Tests
+.pytest_cache/
+
+# Type checking
+.pytype/
+
+# Other
+*.DS_Store
+
+# PyCharm
+.idea
+
+# Pynsy artifacts
+outdir
+
+# pytorch/examples
+best-weights.pt
+cora
+data/
+dataset/
+fake_samples_epoch_000.png
+netD_epoch_0.pth
+netG_epoch_0.pth
+real_samples.png
+results/
