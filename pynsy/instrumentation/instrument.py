@@ -24,46 +24,46 @@ from .util import clone_bytecode_empty_body
 
 # Mappings from op to the size of the stack to report
 
-binary_ops = {
-    "BINARY_POWER": 2,
-    "BINARY_MULTIPLY": 2,
-    "BINARY_MATRIX_MULTIPLY": 2,
-    "BINARY_FLOOR_DIVIDE": 2,
-    "BINARY_TRUE_DIVIDE": 2,
-    "BINARY_MODULO": 2,
-    "BINARY_ADD": 2,
-    "BINARY_SUBTRACT": 2,
-    "BINARY_SUBSCR": 2,
-    "BINARY_LSHIFT": 2,
-    "BINARY_RSHIFT": 2,
-    "BINARY_AND": 2,
-    "BINARY_XOR": 2,
-    "BINARY_OR": 2,
-    "COMPARE_OP": 2,
-    "INPLACE_POWER": 2,
-    "INPLACE_MULTIPLY": 2,
-    "INPLACE_MATRIX_MULTIPLY": 2,
-    "INPLACE_FLOOR_DIVIDE": 2,
-    "INPLACE_TRUE_DIVIDE": 2,
-    "INPLACE_MODULO": 2,
-    "INPLACE_ADD": 2,
-    "INPLACE_SUBTRACT": 2,
-    "INPLACE_LSHIFT": 2,
-    "INPLACE_RSHIFT": 2,
-    "INPLACE_AND": 2,
-    "INPLACE_XOR": 2,
-    "INPLACE_OR": 2,
-    "MAKE_FUNCTION": 2,
-}
-
-unary_ops = {
-    "UNARY_POSITIVE": 1,
-    "UNARY_NEGATIVE": 1,
-    "UNARY_NOT": 1,
-    "UNARY_INVERT": 1,
-    "GET_ITER": 1,
-    "GET_YIELD_FROM_ITER": 1,
-}
+# binary_ops = {
+#     "BINARY_POWER": 2,
+#     "BINARY_MULTIPLY": 2,
+#     "BINARY_MATRIX_MULTIPLY": 2,
+#     "BINARY_FLOOR_DIVIDE": 2,
+#     "BINARY_TRUE_DIVIDE": 2,
+#     "BINARY_MODULO": 2,
+#     "BINARY_ADD": 2,
+#     "BINARY_SUBTRACT": 2,
+#     "BINARY_SUBSCR": 2,
+#     "BINARY_LSHIFT": 2,
+#     "BINARY_RSHIFT": 2,
+#     "BINARY_AND": 2,
+#     "BINARY_XOR": 2,
+#     "BINARY_OR": 2,
+#     "COMPARE_OP": 2,
+#     "INPLACE_POWER": 2,
+#     "INPLACE_MULTIPLY": 2,
+#     "INPLACE_MATRIX_MULTIPLY": 2,
+#     "INPLACE_FLOOR_DIVIDE": 2,
+#     "INPLACE_TRUE_DIVIDE": 2,
+#     "INPLACE_MODULO": 2,
+#     "INPLACE_ADD": 2,
+#     "INPLACE_SUBTRACT": 2,
+#     "INPLACE_LSHIFT": 2,
+#     "INPLACE_RSHIFT": 2,
+#     "INPLACE_AND": 2,
+#     "INPLACE_XOR": 2,
+#     "INPLACE_OR": 2,
+#     "MAKE_FUNCTION": 2,
+# }
+#
+# unary_ops = {
+#     "UNARY_POSITIVE": 1,
+#     "UNARY_NEGATIVE": 1,
+#     "UNARY_NOT": 1,
+#     "UNARY_INVERT": 1,
+#     "GET_ITER": 1,
+#     "GET_YIELD_FROM_ITER": 1,
+# }
 
 pre_instrumented_ops = {
     "UNARY_POSITIVE": 1,
@@ -103,7 +103,7 @@ pre_instrumented_ops = {
     "INPLACE_AND": 2,
     "INPLACE_XOR": 2,
     "INPLACE_OR": 2,
-    "MAKE_FUNCTION": 2,
+#    "MAKE_FUNCTION": 2,
     "SETUP_LOOP": 0,
     "STORE_NAME": 1,
     "STORE_FAST": 1,
@@ -111,15 +111,40 @@ pre_instrumented_ops = {
     "STORE_ATTR": 2,
     "STORE_SUBSCR": 3,
     "STORE_GLOBAL": 1,
-    "POP_TOP": 1,
-    "POP_JUMP_IF_TRUE": 1,
-    "POP_JUMP_IF_FALSE": 1,
-    "ROT_TWO": 2,
-    "CALL_FUNCTION": -1,
+    # "POP_JUMP_IF_TRUE": 1,
+    # "POP_JUMP_IF_FALSE": 1,
+    "CALL_FUNCTION": -2,
     "LOAD_METHOD": 1,
-    "CALL_METHOD": -1,
-    "CALL_FUNCTION_KW": -2,
-    "RETURN_VALUE": 1,
+    "CALL_METHOD": -2,
+    "CALL_FUNCTION_KW": -3,
+    # "RETURN_VALUE": 1,
+
+    # "POP_TOP": 1,
+    # "ROT_TWO": 2,
+    # "ROT_THREE": 3,
+    # "ROT_FOUR": 4,
+    # "DUP_TOP": 1,
+    # "DUP_TOP_TWO": 2,
+
+    # "BUILD_TUPLE": -1,
+    # "BUILD_LIST": -1,
+    # "BUILD_SET": -1,
+    # "BUILD_MAP": 99999,
+    # "BUILD_CONST_KEY_MAP": -1,
+    # "BUILD_STRING": -1,
+
+
+    # "LIST_APPEND": 2,
+    # "SET_ADD": 2,
+    # "MAP_ADD": 3,
+    # "UNPACK_SEQUENCE": 1,
+    # "LIST_TO_TUPLE": 1,
+    # "LIST_EXTEND": 2,
+    # "SET_UPDATE": 2,
+    # "DICT_MERGE": 2,
+    # "DICT_UPDATE": 2,
+    # "GET_LEN": 1,
+
 }
 
 post_instrumented_ops = {
@@ -159,7 +184,7 @@ post_instrumented_ops = {
     "INPLACE_AND": 1,
     "INPLACE_XOR": 1,
     "INPLACE_OR": 1,
-    "MAKE_FUNCTION": 1,
+#    "MAKE_FUNCTION": 1,
     "LOAD_NAME": 1,
     "LOAD_FAST": 1,
     "LOAD_DEREF": 1,
@@ -170,6 +195,32 @@ post_instrumented_ops = {
     "CALL_FUNCTION": 1,
     "CALL_FUNCTION_KW": 1,
     "CALL_METHOD": 1,
+
+    # "POP_TOP": 1,
+    # "ROT_TWO": 2,
+    # "ROT_THREE": 3,
+    # "ROT_FOUR": 4,
+    # "DUP_TOP": 1,
+    # "DUP_TOP_TWO": 2,
+
+    # "BUILD_TUPLE": 1,
+    # "BUILD_LIST": 1,
+    # "BUILD_SET": 1,
+    # "BUILD_MAP": 1,
+    # "BUILD_CONST_KEY_MAP": 1,
+    # "BUILD_STRING": 1,
+
+
+    # "LIST_APPEND": 1,
+    # "SET_ADD": 1,
+    # "MAP_ADD": 1,
+    # "UNPACK_SEQUENCE": -1,
+    # "LIST_TO_TUPLE": 1,
+    # "LIST_EXTEND": 1,
+    # "SET_UPDATE": 1,
+    # "DICT_MERGE": 1,
+    # "DICT_UPDATE": 1,
+    # "GET_LEN": 1,
 }
 
 
@@ -245,10 +296,14 @@ def emit_instrument(
 
 
 def get_args_num(n_operands: int, input: Instr) -> int:
-  if n_operands < 0:
-    return cast(int, input.arg) - n_operands
+  if n_operands > 10000:
+    n_operands = 100000 - n_operands
+    ret = 2*cast(int, input.arg) - n_operands - 1
+  elif n_operands < 0:
+    ret = cast(int, input.arg) - n_operands - 1
   else:
-    return n_operands
+    ret = n_operands
+  return ret
 
 
 warned_operation_types = set()

@@ -27,8 +27,9 @@ from pynsy.instrumentation import heap_object_tracking
 from pynsy.instrumentation import instrument
 from pynsy.instrumentation import util
 
-binary_ops = instrument.binary_ops
-unary_ops = instrument.unary_ops
+post_instrumented_ops = instrument.post_instrumented_ops
+# binary_ops = instrument.binary_ops
+# unary_ops = instrument.unary_ops
 
 HeapObjectTracker = heap_object_tracking.HeapObjectTracker
 
@@ -211,7 +212,7 @@ class OperatorApply:
           self.call_process_event_on_record(
               loc,
               {
-                  "type": "RETURN_FUNCTION",
+                  "type": "EXIT_FUNCTION",
                   "name": function_name,
                   "result_and_args": object_id_stack,
               },
@@ -251,7 +252,7 @@ class OperatorApply:
           self.call_process_event_on_record(
               loc,
               {
-                  "type": "RETURN_METHOD",
+                  "type": "EXIT_METHOD",
                   "name": function_name,
                   "result_and_args": object_id_stack,
               },
@@ -290,7 +291,7 @@ class OperatorApply:
           self.call_process_event_on_record(
               loc,
               {
-                  "type": "RETURN_FUNCTION_KW",
+                  "type": "EXIT_FUNCTION_KW",
                   "name": function_name,
                   "result_and_args": object_id_stack,
               },
@@ -473,31 +474,53 @@ class OperatorApply:
               },
               opcode,
           )
-      elif opname[opcode] in binary_ops:
+      # elif opname[opcode] in binary_ops:
+      #   if not is_post:
+      #     self.pre_op_stack.append((object_id_stack[0], object_id_stack[1]))
+      #   else:
+      #     cur_inputs = self.pre_op_stack.pop()
+      #     self.call_process_event_on_record(
+      #         loc,
+      #         {
+      #             "result_and_args": [
+      #                 object_id_stack[0],
+      #                 cur_inputs[0],
+      #                 cur_inputs[1],
+      #             ],
+      #         },
+      #         opcode,
+      #     )
+      # elif opname[opcode] in unary_ops:
+      #   if not is_post:
+      #     self.pre_op_stack.append(object_id_stack[0])
+      #   else:
+      #     cur_input = self.pre_op_stack.pop()
+      #     self.call_process_event_on_record(
+      #         loc,
+      #         {
+      #             "result_and_args": [object_id_stack[0], cur_input],
+      #         },
+      #         opcode,
+      #     )
+      else:
         if not is_post:
-          self.pre_op_stack.append((object_id_stack[0], object_id_stack[1]))
+          if opname[opcode] not in post_instrumented_ops:
+            self.call_process_event_on_record(
+                loc,
+                {
+                    "result_and_args": object_id_stack,
+                },
+                opcode,
+            )
+          else:
+            self.pre_op_stack.append(object_id_stack)
         else:
-          cur_inputs = self.pre_op_stack.pop()
+          args = self.pre_op_stack.pop()
+          object_id_stack.extend(args)
           self.call_process_event_on_record(
               loc,
               {
-                  "result_and_args": [
-                      object_id_stack[0],
-                      cur_inputs[0],
-                      cur_inputs[1],
-                  ],
-              },
-              opcode,
-          )
-      elif opname[opcode] in unary_ops:
-        if not is_post:
-          self.pre_op_stack.append(object_id_stack[0])
-        else:
-          cur_input = self.pre_op_stack.pop()
-          self.call_process_event_on_record(
-              loc,
-              {
-                  "result_and_args": [object_id_stack[0], cur_input],
+                  "result_and_args": object_id_stack,
               },
               opcode,
           )

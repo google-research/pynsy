@@ -295,11 +295,11 @@ class AbstractState:
         name = str(row["function_name"]) + "()"
       name = CommonUtils.get_nickname(row["type"], name)
 
-      if row["type"].startswith("RETURN_") and not record_list[i - 1][
+      if row["type"].startswith("EXIT_") and not record_list[i - 1][
         "type"
       ].startswith("CALL_"):
         state = state_stack.pop()
-      if not row["type"].startswith("RETURN_") and record_list[i - 1][
+      if not row["type"].startswith("EXIT_") and record_list[i - 1][
         "type"
       ].startswith("CALL_"):
         method_id = row["method_id"]
