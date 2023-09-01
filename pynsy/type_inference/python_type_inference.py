@@ -117,7 +117,7 @@ class PythonTypeInferenceUtils:
         in location_id_to_var_ids_and_values.items():
       print(
           f"{location_id}{location_to_id.get_key(location_id)} :"
-          f" {vars_and_values.common_type_value.get_repr(fresh_var_generator)}"
+          f" {vars_and_values.common_type_value.get_repr(fresh_var_generator)}".replace("Union[NoneType, ", "Optional[")
       )
 
 

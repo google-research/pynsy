@@ -79,7 +79,7 @@ class MyTestCase(unittest.TestCase):
   def test_dict_two(self):
     t = abstraction({"head": 5, 2: None})
     print(t)
-    self.assertEqual(str(t), "(True, dict[Union[int, str], Union[NoneType, int]])")
+    self.assertEqual(str(t), "(True, dict[Union[int, str], Optional[int]])")
 
   def test_dict_three(self):
     t = abstraction({"head": 5, 2: "tail", False: True})
