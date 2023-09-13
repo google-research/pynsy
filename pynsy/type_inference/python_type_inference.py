@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections
 import dataclasses
 from datetime import datetime
 import io
@@ -19,9 +20,11 @@ from typing import Any
 from abc import ABC, abstractmethod
 
 import pandas as pd
+from rich.text import Text
 
 from pynsy.analyses import util
 from pynsy.instrumentation import logging_utils
+from pynsy.instrumentation import module_loader
 from pynsy.type_inference.inference_engine import AbstractState, Template, CommonUtils
 
 
@@ -519,7 +522,7 @@ def process_termination():
     return
 
   df = pd.DataFrame(record_list)
-  log_file = util.get_output_path("tensor_shape_inference", "trace.csv")
+  log_file = util.get_output_path("python_type_inference", "trace.csv")
   log(f"Saving raw data to {log_file}.")
   pd.DataFrame.to_csv(df, log_file)
 
@@ -557,110 +560,100 @@ def process_termination():
       location_id_to_var_ids_and_values, location_to_id, fresh_var_generator
   )
 
+  annotations_by_line_by_module: dict[str, dict[int, list]] = (
+      collections.defaultdict(lambda: collections.defaultdict(list))
+  )
+  for location_id, vars_and_values in location_id_to_var_ids_and_values.items():
+    module_name, method_id, instruction_id, line_number, opcode = (
+        location_to_id.get_key(location_id)
+    )
+    name = location_id_to_name[location_id]
+    del method_id, instruction_id
+    line_number = int(line_number)
 
-#   print(var_id_to_annotation)
-#   type_utils.replace_var_ids_with_names(solution, var_id_to_annotation)
-#   python_type_inference.print_solution(solution)
-#
-#   annotations_by_line_by_module: dict[str, dict[int, list]] = (
-#       collections.defaultdict(lambda: collections.defaultdict(list))
-#   )
-#   for location_id, vars_and_values in location_id_to_var_ids_and_values.items():
-#     module_name, method_id, instruction_id, line_number, opcode = (
-#         location_to_id.get_key(location_id)
-#     )
-#     name = location_id_to_name[location_id]
-#     del method_id, instruction_id
-#     line_number = int(line_number)
-#
-#     symbolic_shape = [solution[x] for x in vars_and_values.var_ids]
-#     concrete_shapes = vars_and_values.values
-#
-#     annotation = Annotation(
-#         opcode=opcode,
-#         name=name,
-#         symbolic_shape=symbolic_shape,
-#         concrete_shape=[
-#             concrete_shape["abs"] for concrete_shape in concrete_shapes
-#         ],
-#     )
-#     annotations_by_line_by_module[module_name][line_number].append(annotation)
-#
-#   modules_by_name = {}
-#   module_text_by_name = {}
-#   for module_name, annotations_by_line in annotations_by_line_by_module.items():
-#     module = module_loader.import_method_from_module(module_name)
-#     modules_by_name[module_name] = module
-#
-#     module_path = module.__file__
-#     with open(module_path, "r") as f:
-#       module_text = f.read()
-#     module_lines = module_text.split("\n")
-#     module_text_by_name[module_name] = module_text
-#     sorted_line_numbers = sorted(annotations_by_line)
-#
-#     def transform_line_number(line_number):
-#       # Explanation:
-#       # - The line numbers in the trace are one-indexed, so subtracting one is
-#       #   necessary to get true line number for indexing into the Python list of
-#       #   file content lines.
-#       return max(0, line_number - 1)
-#
-#     annotated_lines = []
-#     last_line_number = 0
-#
-#     for line_number in sorted_line_numbers:
-#       if last_line_number == 0:
-#         start_index = 0
-#       else:
-#         start_index = transform_line_number(last_line_number)
-#       end_index = transform_line_number(line_number)
-#       annotated_lines.extend(module_lines[start_index:end_index])
-#       last_line_number = line_number
-#
-#       annotated_line = module_lines[end_index]
-#       indent = count_leading_spaces(annotated_line)
-#       annotations = annotations_by_line[line_number]
-#       for annotation in annotations:
-#         s = annotation.to_string(indent=indent, color=True)
-#         annotated_lines.append(s)
-#
-#     end_index = transform_line_number(last_line_number)
-#     annotated_lines.extend(module_lines[end_index:])
-#     annotated_source = "\n".join(annotated_lines)
-#     if verbose:
-#       annotated_text = Text(annotated_source)
-#       annotated_text.highlight_regex(r"\s*# ↳.+", style="bold magenta")
-#       print_panel(annotated_text, title=f"Shape annotations: [b]{module_name}")
-#
-#     annotations_file = util.get_output_path(
-#         "tensor_shape_inference", f"annotations/{module_name}.py"
-#     )
-#     log(f"Saving annotated source file: {annotations_file}.")
-#     with open(annotations_file, "w") as out:
-#       out.write("# Auto-generated file with array shape annotations.\n")
-#       out.write(f"# Original file: {module_path}\n\n")
-#       out.write(annotated_source)
-#
-#   annotations_file = util.get_output_path("tensor_shape_inference", "annotations.txt")
-#   with open(annotations_file, "w") as out:
-#     log(f"Saving annotations to {annotations_file}.")
-#     for (
-#         module_name,
-#         annotations_by_line,
-#     ) in annotations_by_line_by_module.items():
-#       for line_number, annotations in annotations_by_line.items():
-#         s = []
-#         for annotation in annotations:
-#           name = get_name(annotation.opcode, annotation.name)
-#           shape = tuple(annotation.symbolic_shape)
-#           concrete = annotation.concrete_shape
-#           s.append((name, shape, concrete))
-#         out.write(f"{module_name}@{line_number}:\n")
-#         for name, shape, concrete in s:
-#           out.write(f"    {name}: {shape} {concrete}\n")
-#
-#
-# observed_hyper_parameters = set()
-#
-#
+    symbolic_shape = [solution[x] for x in vars_and_values.var_ids]
+    concrete_shapes = vars_and_values.values
+
+    annotation = Annotation(
+        opcode=opcode,
+        name=name,
+        symbolic_shape=symbolic_shape,
+        concrete_shape=[
+            concrete_shape["abs"] for concrete_shape in concrete_shapes
+        ],
+    )
+    annotations_by_line_by_module[module_name][line_number].append(annotation)
+
+  modules_by_name = {}
+  module_text_by_name = {}
+  for module_name, annotations_by_line in annotations_by_line_by_module.items():
+    module = module_loader.import_method_from_module(module_name)
+    modules_by_name[module_name] = module
+
+    module_path = module.__file__
+    with open(module_path, "r") as f:
+      module_text = f.read()
+    module_lines = module_text.split("\n")
+    module_text_by_name[module_name] = module_text
+    sorted_line_numbers = sorted(annotations_by_line)
+
+    def transform_line_number(line_number):
+      # Explanation:
+      # - The line numbers in the trace are one-indexed, so subtracting one is
+      #   necessary to get true line number for indexing into the Python list of
+      #   file content lines.
+      return max(0, line_number - 1)
+
+    annotated_lines = []
+    last_line_number = 0
+
+    for line_number in sorted_line_numbers:
+      if last_line_number == 0:
+        start_index = 0
+      else:
+        start_index = transform_line_number(last_line_number)
+      end_index = transform_line_number(line_number)
+      annotated_lines.extend(module_lines[start_index:end_index])
+      last_line_number = line_number
+
+      annotated_line = module_lines[end_index]
+      indent = CommonUtils.count_leading_spaces(annotated_line)
+      annotations = annotations_by_line[line_number]
+      for annotation in annotations:
+        s = annotation.to_string(indent=indent, color=True)
+        annotated_lines.append(s)
+
+    end_index = transform_line_number(last_line_number)
+    annotated_lines.extend(module_lines[end_index:])
+    annotated_source = "\n".join(annotated_lines)
+    if verbose:
+      annotated_text = Text(annotated_source)
+      annotated_text.highlight_regex(r"\s*# ↳.+", style="bold magenta")
+      print_panel(annotated_text, title=f"Type annotations: [b]{module_name}")
+
+    annotations_file = util.get_output_path(
+        "python_type_inference", f"annotations/{module_name}.py"
+    )
+    log(f"Saving annotated source file: {annotations_file}.")
+    with open(annotations_file, "w") as out:
+      out.write("# Auto-generated file with array shape annotations.\n")
+      out.write(f"# Original file: {module_path}\n\n")
+      out.write(annotated_source)
+
+  annotations_file = util.get_output_path("python_type_inference", "annotations.txt")
+  with open(annotations_file, "w") as out:
+    log(f"Saving annotations to {annotations_file}.")
+    for (
+        module_name,
+        annotations_by_line,
+    ) in annotations_by_line_by_module.items():
+      for line_number, annotations in annotations_by_line.items():
+        s = []
+        for annotation in annotations:
+          name = CommonUtils.get_nickname(annotation.opcode, annotation.name)
+          shape = tuple(annotation.symbolic_shape)
+          concrete = annotation.concrete_shape
+          s.append((name, shape, concrete))
+        out.write(f"{module_name}@{line_number}:\n")
+        for name, shape, concrete in s:
+          out.write(f"    {name}: {shape} {concrete}\n")
