@@ -34,6 +34,7 @@ record_list = []
 now = datetime.now()
 timestamp = int(round(now.timestamp()))
 
+
 @dataclasses.dataclass
 class Annotation:
   """A Python object shape annotation.
@@ -67,19 +68,18 @@ class Annotation:
 
 class PythonTypeInferenceUtils:
   templates = [
-        Template(
-            "=",
-            2,
-            lambda state, vars: state.get(vars[0], None) ==
-                                state.get(vars[1], None),
-            lambda vars: vars[0],
-        )
-    ]
+      Template(
+          "=",
+          2,
+          lambda state, vars: state.get(vars[0], None)
+          == state.get(vars[1], None),
+          lambda vars: vars[0],
+      )
+  ]
 
   @classmethod
   def to_consider(cls, value):
     return isinstance(value["abs"], PType)
-
 
   @classmethod
   def get_state_update(cls, vars_and_values, value):
@@ -94,32 +94,37 @@ class PythonTypeInferenceUtils:
     pass
 
   @classmethod
-  def create_var_ids_and_global_state(cls,
-      location_id_to_vars_and_values,
-      fresh_var_generator,
-      global_state):
+  def create_var_ids_and_global_state(
+      cls, location_id_to_vars_and_values, fresh_var_generator, global_state
+  ):
     for location_id, vars_and_values in location_id_to_vars_and_values.items():
       abstraction_set_iter = iter(vars_and_values.abstraction_set)
       common_type_value = next(iter(vars_and_values.abstraction_set))
       for type_value in abstraction_set_iter:
         common_type_value = common_type_value.find_common_subtree(type_value)
       var_ids = []
-      common_type_value.assign_var_ids(var_ids, location_id,
-                                        fresh_var_generator)
+      common_type_value.assign_var_ids(
+          var_ids, location_id, fresh_var_generator
+      )
       vars_and_values.var_ids = var_ids
       vars_and_values.common_type_value = common_type_value
 
   @classmethod
-  def print_solution(cls,
+  def print_solution(
+      cls,
       location_id_to_var_ids_and_values,
-      location_to_id, fresh_var_generator):
-    for location_id, vars_and_values \
-        in location_id_to_var_ids_and_values.items():
+      location_to_id,
+      fresh_var_generator,
+  ):
+    for (
+        location_id,
+        vars_and_values,
+    ) in location_id_to_var_ids_and_values.items():
       print(
           f"{location_id}{location_to_id.get_key(location_id)} :"
-          f" {vars_and_values.common_type_value.get_repr(fresh_var_generator)}".replace("Union[NoneType, ", "Optional[")
+          f" {vars_and_values.common_type_value.get_repr(fresh_var_generator)}"
+          .replace("Union[NoneType, ", "Optional[")
       )
-
 
 
 class PType(ABC):
@@ -130,7 +135,6 @@ class PType(ABC):
 
   def __hash__(self):
     return hash(repr(self))
-
 
   def __eq__(self, other):
     if not isinstance(other, PType):
@@ -196,6 +200,7 @@ class PTypeVar(PType):
 
 
 class PTupleType(PType):
+
   @classmethod
   def get_ptype(cls, element_types):
     return PTupleType(element_types)
@@ -212,9 +217,12 @@ class PTupleType(PType):
     elif len(self.element_types) != len(other.element_types):
       return PTypeVar()
     else:
-      return PTupleType.get_ptype([
-          c1.find_common_subtree(c2)
-          for c1, c2 in zip(self.element_types, other.element_types)])
+      return PTupleType.get_ptype(
+          [
+              c1.find_common_subtree(c2)
+              for c1, c2 in zip(self.element_types, other.element_types)
+          ]
+      )
 
   def assign_var_ids(self, var_ids, location_id, fresh_var_generator):
     for c1 in self.element_types:
@@ -231,7 +239,7 @@ class PTupleType(PType):
         c.get_repr(fresh_var_generator) for c in self.element_types
     ]
     if len(element_types_repr) == 0:
-      repr = PNominalType.get_ptype('Any').get_repr(fresh_var_generator)
+      repr = PNominalType.get_ptype("Any").get_repr(fresh_var_generator)
       ret = f"{self.name}[{repr}]"
     elif len(set(element_types_repr)) == 1:
       ret = f"{self.name}[{element_types_repr[0]},...]"
@@ -259,7 +267,8 @@ class PListType(PType):
       return PTypeVar()
     else:
       return PListType.get_ptype(
-          self.element_type.find_common_subtree(other.element_type))
+          self.element_type.find_common_subtree(other.element_type)
+      )
 
   def assign_var_ids(self, var_ids, location_id, fresh_var_generator):
     self.element_type.assign_var_ids(var_ids, location_id, fresh_var_generator)
@@ -291,7 +300,8 @@ class PSetType(PType):
       return PTypeVar()
     else:
       return PSetType.get_ptype(
-          self.element_type.find_common_subtree(other.element_type))
+          self.element_type.find_common_subtree(other.element_type)
+      )
 
   def assign_var_ids(self, var_ids, location_id, fresh_var_generator):
     self.element_type.assign_var_ids(var_ids, location_id, fresh_var_generator)
@@ -307,6 +317,7 @@ class PSetType(PType):
 
 
 class PDictType(PType):
+
   @classmethod
   def get_ptype(cls, key_type, value_type):
     return PDictType(key_type, value_type)
@@ -324,7 +335,7 @@ class PDictType(PType):
     else:
       return PDictType.get_ptype(
           self.key_type.find_common_subtree(other.key_type),
-          self.value_type.find_common_subtree(other.value_type)
+          self.value_type.find_common_subtree(other.value_type),
       )
 
   def assign_var_ids(self, var_ids, location_id, fresh_var_generator):
@@ -332,8 +343,9 @@ class PDictType(PType):
     self.value_type.assign_var_ids(var_ids, location_id, fresh_var_generator)
 
   def extract_values_for_var_ids(self, type_value):
-    return self.key_type.extract_values_for_var_ids(type_value) + \
-      self.value_type.extract_values_for_var_ids(type_value)
+    return self.key_type.extract_values_for_var_ids(
+        type_value
+    ) + self.value_type.extract_values_for_var_ids(type_value)
 
   def get_repr(self, fresh_var_generator):
     key_repr = self.key_type.get_repr(fresh_var_generator)
@@ -363,8 +375,9 @@ class PNominalType(PType):
     super().__init__(name)
 
   def find_common_subtree(self, other):
-    if self == PNominalType.get_ptype("Any") or \
-        other == PNominalType.get_ptype("Any"):
+    if self == PNominalType.get_ptype("Any") or other == PNominalType.get_ptype(
+        "Any"
+    ):
       return PNominalType.get_ptype("Any")
     elif self == other:
       return self
@@ -393,8 +406,7 @@ class PUnionType(PType):
       return possible_types[0]
     elif len(possible_types_set) <= cls.max_children:
       tmp = sorted(
-          [(c, repr(c)) for c in possible_types_set],
-          key=lambda x: x[1]
+          [(c, repr(c)) for c in possible_types_set], key=lambda x: x[1]
       )
       return PUnionType([e[0] for e in tmp])
     else:
@@ -412,10 +424,12 @@ class PUnionType(PType):
     elif len(self.possible_types) != len(other.possible_types):
       return PTypeVar()
     else:
-      return PUnionType.get_ptype([
-          c1.find_common_subtree(c2)
-          for c1, c2 in zip(self.possible_types, other.possible_types)
-      ])
+      return PUnionType.get_ptype(
+          [
+              c1.find_common_subtree(c2)
+              for c1, c2 in zip(self.possible_types, other.possible_types)
+          ]
+      )
 
   def assign_var_ids(self, var_ids, location_id, fresh_var_generator):
     for c in self.possible_types:
@@ -423,10 +437,10 @@ class PUnionType(PType):
 
   def extract_values_for_var_ids(self, type_value):
     return [
-        c for l in self.possible_types
+        c
+        for l in self.possible_types
         for c in l.extract_values_for_var_ids(type_value)
     ]
-
 
   def get_repr(self, fresh_var_generator):
     possible_types_repr = [
@@ -462,8 +476,6 @@ def abstraction(obj):
   # else:
   #   ignore = False
   return True, get_type(obj)
-
-
 
 
 def get_type(obj):
@@ -528,22 +540,23 @@ def process_termination():
 
   for k, v in location_id_to_var_ids_and_values.items():
     print(f"{k}{location_to_id.get_key(k)} : {v}")
-  solution = CommonUtils.find_solution(fresh_var_generator.num_ids(),
-                                       PythonTypeInferenceUtils.templates,
-                                       global_state,
-                                       location_id_to_state_list,
-                                       location_id_to_var_ids_and_values)
+  solution = CommonUtils.find_solution(
+      fresh_var_generator.num_ids(),
+      PythonTypeInferenceUtils.templates,
+      global_state,
+      location_id_to_state_list,
+      location_id_to_var_ids_and_values,
+  )
   equivalence_classes = CommonUtils.get_equivalence_classes(solution)
   fresh_var_generator.set_annotations(
-      equivalence_classes,
-      var_id_to_annotation,
-      lambda x: f"T{x}")
+      equivalence_classes, var_id_to_annotation, lambda x: f"T{x}"
+  )
 
   print(solution)
   PythonTypeInferenceUtils.print_solution(
-      location_id_to_var_ids_and_values,
-      location_to_id,
-      fresh_var_generator)
+      location_id_to_var_ids_and_values, location_to_id, fresh_var_generator
+  )
+
 
 #   print(var_id_to_annotation)
 #   type_utils.replace_var_ids_with_names(solution, var_id_to_annotation)

@@ -66,38 +66,44 @@ class Annotation:
       s = styled(s, style="bold magenta")
     return s
 
+
 class TensorShapeInferenceUtils:
   templates = [
       Template(
           "/",
           3,
           lambda state, vars: False
-          if state.get(vars[0], 0) == 0 or state.get(vars[0], 0) == 1 or \
-             state.get(vars[1], 0) == 0 or state.get(vars[1], 0) == 1 or \
-             state.get(vars[2], 0) == 0 or state.get(vars[2], 0) == 1 \
-            else state.get(vars[0], 0)
-               == state.get(vars[1], 0) / state.get(vars[2], 0),
+          if state.get(vars[0], 0) == 0
+          or state.get(vars[0], 0) == 1
+          or state.get(vars[1], 0) == 0
+          or state.get(vars[1], 0) == 1
+          or state.get(vars[2], 0) == 0
+          or state.get(vars[2], 0) == 1
+          else state.get(vars[0], 0)
+          == state.get(vars[1], 0) / state.get(vars[2], 0),
           lambda vars: f"{vars[0]}          /{vars[1]}",
       ),
       Template(
-            "*",
-            3,
-            lambda state, vars: False
-            if state.get(vars[0], 0) == 0 or state.get(vars[0], 0) == 1 or \
-              state.get(vars[1], 0) == 0 or state.get(vars[1], 0) == 1 or \
-              state.get(vars[2], 0) == 0 or state.get(vars[2], 0) == 1 \
-            else state.get(vars[0], 0)
-                 == state.get(vars[1], 0) * state.get(vars[2], 0),
-            lambda vars: f"{vars[0]}*{vars[1]}",
-        ),
+          "*",
+          3,
+          lambda state, vars: False
+          if state.get(vars[0], 0) == 0
+          or state.get(vars[0], 0) == 1
+          or state.get(vars[1], 0) == 0
+          or state.get(vars[1], 0) == 1
+          or state.get(vars[2], 0) == 0
+          or state.get(vars[2], 0) == 1
+          else state.get(vars[0], 0)
+          == state.get(vars[1], 0) * state.get(vars[2], 0),
+          lambda vars: f"{vars[0]}*{vars[1]}",
+      ),
       Template(
           "=",
           2,
           lambda state, vars: state.get(vars[0], 0) == state.get(vars[1], 0),
           lambda vars: f"{vars[0]}",
       ),
-    ]
-
+  ]
 
   @classmethod
   def to_consider(cls, value):
@@ -128,16 +134,14 @@ class TensorShapeInferenceUtils:
         var_id_to_annotation[var_id] = name
 
   @classmethod
-  def create_var_ids_and_global_state(cls,
-      location_id_to_vars_and_values,
-      fresh_var_generator,
-      global_state):
+  def create_var_ids_and_global_state(
+      cls, location_id_to_vars_and_values, fresh_var_generator, global_state
+  ):
     for location_id, vars_and_values in location_id_to_vars_and_values.items():
       value = next(iter(vars_and_values.abstraction_set))
       vars_and_values.var_ids = cls.create_var_ids(
-          value,
-          fresh_var_generator,
-          location_id)
+          value, fresh_var_generator, location_id
+      )
       if len(vars_and_values.abstraction_set) == 1:
         global_state.update(zip(vars_and_values.var_ids, value))
 
@@ -148,18 +152,20 @@ class TensorShapeInferenceUtils:
       location_to_id,
       fresh_var_generator,
       solution,
-      identity_template):
-    for location_id, vars_and_values in \
-        location_id_to_var_ids_and_values.items():
+      identity_template,
+  ):
+    for (
+        location_id,
+        vars_and_values,
+    ) in location_id_to_var_ids_and_values.items():
       if all(
-          solution[x].get_template() !=
-          identity_template for x in vars_and_values.var_ids):
+          solution[x].get_template() != identity_template
+          for x in vars_and_values.var_ids
+      ):
         annotation = [solution[x] for x in vars_and_values.var_ids]
         print(
-            f"{location_id}{location_to_id.get_key(location_id)} :"
-            f" {annotation}"
+            f"{location_id}{location_to_id.get_key(location_id)} : {annotation}"
         )
-
 
 
 def abstraction(obj):
@@ -169,8 +175,6 @@ def abstraction(obj):
     except:
       return True, None
   return True, None
-
-
 
 
 def process_event(record):
@@ -205,26 +209,32 @@ def process_termination():
 
   for k, v in location_id_to_var_ids_and_values.items():
     print(f"{k}{location_to_id.get_key(k)} : {v}")
-  solution = CommonUtils.find_solution(fresh_var_generator.num_ids(),
-                                       TensorShapeInferenceUtils.templates,
-                                       global_state,
-                                       location_id_to_state_list,
-                                       location_id_to_var_ids_and_values)
+  solution = CommonUtils.find_solution(
+      fresh_var_generator.num_ids(),
+      TensorShapeInferenceUtils.templates,
+      global_state,
+      location_id_to_state_list,
+      location_id_to_var_ids_and_values,
+  )
   print(var_id_to_annotation)
   equivalence_classes = CommonUtils.get_equivalence_classes(solution)
-  fresh_var_generator.set_annotations(equivalence_classes,
-                                      var_id_to_annotation,
-                                      lambda x: f"d{x}")
+  fresh_var_generator.set_annotations(
+      equivalence_classes, var_id_to_annotation, lambda x: f"d{x}"
+  )
 
   for rhs in solution:
     if rhs.get_template() != CommonUtils.identity_template:
-      rhs.vars = [fresh_var_generator.get_annotation(var_id) for var_id in rhs.vars]
+      rhs.vars = [
+          fresh_var_generator.get_annotation(var_id) for var_id in rhs.vars
+      ]
 
-  TensorShapeInferenceUtils.print_solution(location_id_to_var_ids_and_values,
-                                           location_to_id,
-                                           fresh_var_generator,
-                                           solution,
-                                           CommonUtils.identity_template)
+  TensorShapeInferenceUtils.print_solution(
+      location_id_to_var_ids_and_values,
+      location_to_id,
+      fresh_var_generator,
+      solution,
+      CommonUtils.identity_template,
+  )
 
   annotations_by_line_by_module: dict[str, dict[int, list]] = (
       collections.defaultdict(lambda: collections.defaultdict(list))
@@ -237,8 +247,7 @@ def process_termination():
     del method_id, instruction_id
     line_number = int(line_number)
 
-    symbolic_shape = \
-      [solution[x] for x in vars_and_values.var_ids]
+    symbolic_shape = [solution[x] for x in vars_and_values.var_ids]
     concrete_shapes = vars_and_values.values
 
     annotation = Annotation(
@@ -308,8 +317,7 @@ def process_termination():
       out.write(annotated_source)
 
   annotations_file = util.get_output_path(
-      "tensor_shape_inference",
-      "annotations.txt"
+      "tensor_shape_inference", "annotations.txt"
   )
   with open(annotations_file, "w") as out:
     log(f"Saving annotations to {annotations_file}.")

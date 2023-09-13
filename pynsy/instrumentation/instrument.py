@@ -103,7 +103,7 @@ pre_instrumented_ops = {
     "INPLACE_AND": 2,
     "INPLACE_XOR": 2,
     "INPLACE_OR": 2,
-#    "MAKE_FUNCTION": 2,
+    #    "MAKE_FUNCTION": 2,
     "SETUP_LOOP": 0,
     "STORE_NAME": 1,
     "STORE_FAST": 1,
@@ -118,22 +118,18 @@ pre_instrumented_ops = {
     "CALL_METHOD": -2,
     "CALL_FUNCTION_KW": -3,
     "RETURN_VALUE": 1,
-
     # "POP_TOP": 1,
     # "ROT_TWO": 2,
     # "ROT_THREE": 3,
     # "ROT_FOUR": 4,
     # "DUP_TOP": 1,
     # "DUP_TOP_TWO": 2,
-
     "BUILD_TUPLE": -1,
     "BUILD_LIST": -1,
     "BUILD_SET": -1,
     "BUILD_MAP": 99999,
     "BUILD_CONST_KEY_MAP": -1,
     "BUILD_STRING": -1,
-
-
     "LIST_APPEND": 2,
     "SET_ADD": 2,
     "MAP_ADD": 3,
@@ -144,7 +140,6 @@ pre_instrumented_ops = {
     "DICT_MERGE": 2,
     "DICT_UPDATE": 2,
     "GET_LEN": 1,
-
 }
 
 post_instrumented_ops = {
@@ -184,7 +179,7 @@ post_instrumented_ops = {
     "INPLACE_AND": 1,
     "INPLACE_XOR": 1,
     "INPLACE_OR": 1,
-#    "MAKE_FUNCTION": 1,
+    #    "MAKE_FUNCTION": 1,
     "LOAD_NAME": 1,
     "LOAD_FAST": 1,
     "LOAD_DEREF": 1,
@@ -195,22 +190,18 @@ post_instrumented_ops = {
     "CALL_FUNCTION": 1,
     "CALL_FUNCTION_KW": 1,
     "CALL_METHOD": 1,
-
     # "POP_TOP": 1,
     # "ROT_TWO": 2,
     # "ROT_THREE": 3,
     # "ROT_FOUR": 4,
     # "DUP_TOP": 1,
     # "DUP_TOP_TWO": 2,
-
     "BUILD_TUPLE": 1,
     "BUILD_LIST": 1,
     "BUILD_SET": 1,
     "BUILD_MAP": 1,
     "BUILD_CONST_KEY_MAP": 1,
     "BUILD_STRING": 1,
-
-
     "LIST_APPEND": 1,
     "SET_ADD": 1,
     "MAP_ADD": 1,
@@ -298,7 +289,7 @@ def emit_instrument(
 def get_args_num(n_operands: int, input: Instr) -> int:
   if n_operands > 10000:
     n_operands = 100000 - n_operands
-    ret = 2*cast(int, input.arg) - n_operands - 1
+    ret = 2 * cast(int, input.arg) - n_operands - 1
   elif n_operands < 0:
     ret = cast(int, input.arg) - n_operands - 1
   else:

@@ -57,7 +57,9 @@ def retrieve_record_element(record, i):
   record["result_and_args"] = value_vector
   return record
 
+
 debug_i = 0
+
 
 class OperatorApply:
   loop_stack: List[Any]

@@ -41,6 +41,7 @@ def print_panel(renderable: Any, title: str = ""):
 
 def logger(analysis_name: str):
   """Returns a logger function."""
+
   def log(message: str):
     rprint(f"[bold][blue]{analysis_name}[/]: {message}")
 

@@ -2,6 +2,7 @@ import dataclasses
 import itertools
 from typing import Any
 
+
 class UniqueIdForKey:
 
   def __init__(self):
@@ -57,8 +58,6 @@ class FreshVarIdGenerator:
 
   def get_annotation(self, id):
     return self.var_id_to_annotation[id]
-
-
 
 
 class TemplateInstance:
@@ -137,14 +136,15 @@ class CommonUtils:
       "identity", 1, lambda state, vars: True, lambda vars: vars[0]
   )
 
-
   @classmethod
-  def find_solution(cls,
+  def find_solution(
+      cls,
       n_var_ids,
       templates,
       global_state,
       location_id_to_state_list,
-      location_id_to_var_ids_and_values):
+      location_id_to_var_ids_and_values,
+  ):
     solution = [
         TemplateInstance(cls.identity_template, [i]) for i in range(n_var_ids)
     ]
@@ -155,23 +155,21 @@ class CommonUtils:
           vars_list = [
               i
               for i in range(n_var_ids)
-              if i != var and solution[i].get_template() ==
-                 cls.identity_template
+              if i != var
+              and solution[i].get_template() == cls.identity_template
           ]
           vars_iter = itertools.combinations(vars_list, template.n_vars - 1)
           for vars in vars_iter:
             vars = [var] + list(vars)
             holds = True
             for state in state_list:
-              if not template.predicate(state|global_state, vars):
+              if not template.predicate(state | global_state, vars):
                 holds = False
                 break
             if holds:
               solution[var] = template.get_instance(vars[1:])
               break
     return solution
-
-
 
   @classmethod
   def get_equivalence_classes(cls, solution):
@@ -205,7 +203,6 @@ class CommonUtils:
   @classmethod
   def count_leading_spaces(cls, s: str) -> int:
     return len(s) - len(s.lstrip(" "))
-
 
 
 @dataclasses.dataclass
@@ -259,7 +256,6 @@ class AbstractState:
       self.method_id_to_var_ids[method_id] = set()
     return self.method_id_to_var_ids[method_id]
 
-
   def create_var_ids_and_global_state(self, record_list):
     rlen = len(record_list)
     for i in range(rlen):
@@ -273,13 +269,14 @@ class AbstractState:
           vars_and_values.add_to_abstraction_set(value["abs"])
           self.location_id_to_var_ids_and_values[location_id] = vars_and_values
         else:
-          self.location_id_to_var_ids_and_values[location_id] \
-            .add_to_abstraction_set(value["abs"])
+          self.location_id_to_var_ids_and_values[
+              location_id
+          ].add_to_abstraction_set(value["abs"])
     self.type_utils.create_var_ids_and_global_state(
         self.location_id_to_var_ids_and_values,
         self.fresh_var_generator,
-        self.global_state)
-
+        self.global_state,
+    )
 
   def create_local_states(self, record_list):
     state_stack = []
@@ -296,17 +293,18 @@ class AbstractState:
       name = CommonUtils.get_nickname(row["type"], name)
 
       if row["type"].startswith("EXIT_") and not record_list[i - 1][
-        "type"
+          "type"
       ].startswith("CALL_"):
         state = state_stack.pop()
       if not row["type"].startswith("EXIT_") and record_list[i - 1][
-        "type"
+          "type"
       ].startswith("CALL_"):
         method_id = row["method_id"]
         state_stack.append(state)
         var_ids_in_method = self.get_var_ids_in_method(method_id)
-        state = \
-          {key: state[key] for key in state if key not in var_ids_in_method}
+        state = {
+            key: state[key] for key in state if key not in var_ids_in_method
+        }
 
       value = row["result_and_args"][0]
       if self.type_utils.to_consider(value):
@@ -323,15 +321,13 @@ class AbstractState:
 
         self.type_utils.set_annotation(row, var_ids, self.var_id_to_annotation)
 
-        value = \
-          self.location_id_to_var_ids_and_values[location_id].get_last_value()
+        value = self.location_id_to_var_ids_and_values[
+            location_id
+        ].get_last_value()
         state_update = self.type_utils.get_state_update(
-            self.location_id_to_var_ids_and_values[location_id],
-            value
+            self.location_id_to_var_ids_and_values[location_id], value
         )
         state.update(state_update)
         if location_id not in self.location_id_to_state_list:
           self.location_id_to_state_list[location_id] = list()
         self.location_id_to_state_list[location_id].append(dict(state))
-
-

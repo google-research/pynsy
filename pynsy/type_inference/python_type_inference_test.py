@@ -1,8 +1,10 @@
 import unittest
 from pynsy.type_inference.python_type_inference import *
 
+
 class A:
   pass
+
 
 class MyTestCase(unittest.TestCase):
 
@@ -89,7 +91,10 @@ class MyTestCase(unittest.TestCase):
   def test_dicts(self):
     t = abstraction({"head": 5, "tail": [7, 8, "a", "b"], 1: 8})
     print(t)
-    self.assertEqual(str(t), "(True, dict[Union[int, str], Union[int, list[Union[int, str]]]])")
+    self.assertEqual(
+        str(t),
+        "(True, dict[Union[int, str], Union[int, list[Union[int, str]]]])",
+    )
 
   def test_fcst1(self):
     t1 = abstraction({"head": 5, 2: None})
@@ -134,5 +139,5 @@ class MyTestCase(unittest.TestCase):
     self.assertEqual(str(t), "dict[Union[int, str], TypeVar(-1)]")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
   unittest.main()
