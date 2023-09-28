@@ -56,13 +56,15 @@ class Annotation:
   symbolic_shape: Any
   concrete_shape: Any
 
-  def to_string(self, indent: int = 0, *, color: bool = True) -> str:
+  def to_string(self, indent: int = 0, *, show_concrete_shape: bool = True, color: bool = True) -> str:
     out = io.StringIO()
     out.write(" " * indent)
     name = CommonUtils.get_nickname(self.opcode, self.name)
-    concrete_shape_str = " ".join(str(x) for x in self.concrete_shape)
-    msg = f"# ↳ {name}: {self.symbolic_shape} · {concrete_shape_str}"
-    out.write(msg)
+    out.write(f"# ↳ {name}: {self.symbolic_shape}")
+    if show_concrete_shape:
+      out.write(" · ")
+      concrete_shape_str = " ".join(str(x) for x in self.concrete_shape)
+      out.write(concrete_shape_str)
     s = out.getvalue()
     if color:
       s = styled(s, style="bold magenta")
@@ -571,7 +573,7 @@ def process_termination():
     del method_id, instruction_id
     line_number = int(line_number)
 
-    symbolic_shape = [solution[x] for x in vars_and_values.var_ids]
+    symbolic_shape = vars_and_values.common_type_value.get_repr(fresh_var_generator)
     concrete_shapes = vars_and_values.values
 
     annotation = Annotation(
@@ -620,7 +622,7 @@ def process_termination():
       indent = CommonUtils.count_leading_spaces(annotated_line)
       annotations = annotations_by_line[line_number]
       for annotation in annotations:
-        s = annotation.to_string(indent=indent, color=True)
+        s = annotation.to_string(indent=indent, show_concrete_shape=False, color=True)
         annotated_lines.append(s)
 
     end_index = transform_line_number(last_line_number)
