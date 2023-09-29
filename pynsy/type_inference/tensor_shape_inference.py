@@ -236,6 +236,8 @@ def process_termination():
       CommonUtils.identity_template,
   )
 
+  dimensions_count = 0
+  unified_dimensions_count = 0
   annotations_by_line_by_module: dict[str, dict[int, list]] = (
       collections.defaultdict(lambda: collections.defaultdict(list))
   )
@@ -258,7 +260,13 @@ def process_termination():
             concrete_shape["abs"] for concrete_shape in concrete_shapes
         ],
     )
+    dimensions_count += len(symbolic_shape)
+    unified_dimensions_count += len(set(symbolic_shape))
     annotations_by_line_by_module[module_name][line_number].append(annotation)
+
+  log(f"Annotation count: {len(location_id_to_var_ids_and_values)}.")
+  log(f"Dimensions count: {dimensions_count}.")
+  log(f"Anti-unified dimension variable count: {unified_dimensions_count}.")
 
   modules_by_name = {}
   module_text_by_name = {}
