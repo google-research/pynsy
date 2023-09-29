@@ -169,11 +169,11 @@ class TensorShapeInferenceUtils:
 
 
 def abstraction(obj):
-  if hasattr(obj, "shape"):
-    try:
+  try:
+    if hasattr(obj, "shape"):
       return True, obj.shape
-    except:
-      return True, None
+  except:
+    return True, None
   return True, None
 
 

@@ -5,6 +5,9 @@ analyzers = [
 [instrumentation_rules]
 include = [
   "pynsy.demos",
+  # "levanter",
+  "levanter.main",
+  "levanter.models",
 ]
 exclude = [
   "jax",

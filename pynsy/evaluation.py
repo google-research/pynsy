@@ -13,29 +13,43 @@
 # limitations under the License.
 
 from collections.abc import Sequence
-import pandas as pd
+import pathlib
+import shlex
 import subprocess
 from timeit import default_timer as timer
 
 import fire
+import pandas as pd
 import tqdm
 
 from pynsy.analyses import util
 
 
+ROOT_DIR = pathlib.Path(__file__).parent.parent.resolve()
+
+
 def run_command(args: Sequence[str]) -> int:
   start = timer()
-  subprocess.run(args, capture_output=True, check=True)
+  completed_process = subprocess.run(args, capture_output=True, check=True)
+  # print(completed_process.stdout.decode())
+  # print(completed_process.stderr.decode())
   end = timer()
   return end - start
 
 
 class EvaluationExample:
 
-  def __init__(self, name: str, raw_command: str):
+  def __init__(
+      self, name: str, raw_command: str, setup_commands: Sequence[str] = ()
+  ):
     self.name = name
     self.raw_command = raw_command
-    self.raw_args = raw_command.split(' ')
+    self.raw_args = shlex.split(raw_command)
+    self.setup_commands = tuple(shlex.split(c) for c in setup_commands)
+
+  def run_setup_commands(self) -> None:
+    for args in self.setup_commands:
+      run_command(args)
 
   def run_python_command(self) -> int:
     args = ['python3', '-m'] + self.raw_args
@@ -48,7 +62,7 @@ class EvaluationExample:
         '-m',
         'pynsy.main',
         '--config',
-        'configs/tensor_shape_inference.toml',
+        str(ROOT_DIR / 'configs/tensor_shape_inference.toml'),
         '--module',
         module_name,
         '--',
@@ -72,6 +86,10 @@ EXAMPLES = [
             'pynsy.demos.haiku.examples.transformer.train '
             '--dataset_path=/tmp/shakespeare.txt'
         ),
+        setup_commands=[
+          'wget -O /tmp/shakespeare.txt '
+          'https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt',
+        ],
     ),
     # Flax examples
     EvaluationExample(
@@ -115,6 +133,7 @@ EXAMPLES = [
     EvaluationExample(
         name='pytorch/siamese_network',
         raw_command=(
+            # 'pynsy.demos.pytorch_examples.siamese_network.main '
             'pynsy.demos.pytorch_examples.siamese_network.main --dry-run '
             '--epochs 1'
         ),
@@ -126,8 +145,16 @@ EXAMPLES = [
     EvaluationExample(
         name='pytorch/vision_transformer',
         raw_command=(
+            # 'pynsy.demos.pytorch_examples.vision_transformer.main '
             'pynsy.demos.pytorch_examples.vision_transformer.main --dry-run '
             '--epochs 1'
+        ),
+    ),
+    # Levanter examples
+    EvaluationExample(
+        name='levanter/train_lm',
+        raw_command=(
+            'levanter.main.test_train_lm'
         ),
     ),
 ]
@@ -139,6 +166,8 @@ def evaluate(example: str | EvaluationExample, pbar: tqdm.tqdm | None = None):
   """Evaluates the given example program."""
   if isinstance(example, str):
     example = EVAL_COMMANDS_BY_NAME[example]
+
+  example.run_setup_commands()
 
   msg = f'Evaluating {example.name} baseline'
   if pbar:
@@ -164,6 +193,7 @@ def evaluate(example: str | EvaluationExample, pbar: tqdm.tqdm | None = None):
       name=example.name,
       baseline_time=baseline_time,
       pynsy_time=pynsy_time,
+      slowdown=pynsy_time / baseline_time,
   )
   return row
 
@@ -182,6 +212,7 @@ def evaluate_all():
   df.to_csv(util.OUTPUT_ROOT_DIR / 'evaluation_performance.csv', index=False)
   df.to_latex(
       util.OUTPUT_ROOT_DIR / 'evaluation_performance.tex',
+      float_format='%.2f',
       index=False,
       escape=True,
   )

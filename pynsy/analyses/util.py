@@ -14,7 +14,9 @@
 
 import pathlib
 
-OUTPUT_ROOT_DIR = pathlib.Path("outdir")
+ROOT_DIR = pathlib.Path(__file__).parent.parent.resolve()
+
+OUTPUT_ROOT_DIR = ROOT_DIR / "outdir"
 
 
 def get_output_path(analysis_name: str, filename: str) -> str:
