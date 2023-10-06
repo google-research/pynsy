@@ -58,12 +58,20 @@ class Annotation:
   symbolic_shape: Any
   concrete_shape: Any
 
-  def to_string(self, indent: int = 0, *, color: bool = True) -> str:
+  def to_string(
+      self, indent: int = 0, *, color: bool = True, latex: bool = True
+  ) -> str:
     out = io.StringIO()
     out.write(" " * indent)
     name = CommonUtils.get_nickname(self.opcode, self.name)
     concrete_shape_str = " ".join(str(x) for x in self.concrete_shape)
-    msg = f"# {name}: {self.symbolic_shape}" # => {concrete_shape_str}"
+    if latex:
+      msg = (
+          r"# @$\triangleright$@ "
+          f"{name}: {self.symbolic_shape}"
+      )
+    else:
+      msg = f"# ↳ {name}: {self.symbolic_shape} · {concrete_shape_str}"
     out.write(msg)
     s = out.getvalue()
     if color:
@@ -294,8 +302,10 @@ def process_termination():
   log(f"Annotation count: {len(location_id_to_var_ids_and_values)}.")
   log(f"Dimensions count: {total_dimensions_count}.")
   log(f"Shown dimensions variable count: {shown_dimensions_count}.")
-  log(f"Anti-unified dimension variables ({len(unified_dimensions)}): "
-      f"{sorted(unified_dimensions)}.")
+  log(
+      f"Anti-unified dimension variables ({len(unified_dimensions)}): "
+      f"{sorted(unified_dimensions)}."
+  )
 
   modules_by_name = {}
   module_text_by_name = {}
