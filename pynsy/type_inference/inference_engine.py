@@ -130,6 +130,7 @@ class CommonUtils:
       "RETURN_FUNCTION": "<call>",
       "RETURN_FUNCTION_KW": "<call>",
       "RETURN_METHOD": "<call>",
+      "RETURN_VALUE": "return",
   }
 
   identity_template = Template(
@@ -148,9 +149,9 @@ class CommonUtils:
     solution = [
         TemplateInstance(cls.identity_template, [i]) for i in range(n_var_ids)
     ]
-    for location_id, state_list in location_id_to_state_list.items():
-      exclude = location_id_to_var_ids_and_values[location_id].var_ids
-      for template in templates:
+    for template in templates:
+      for location_id, state_list in location_id_to_state_list.items():
+        exclude = location_id_to_var_ids_and_values[location_id].var_ids
         for var in exclude:
           vars_list = [
               i
@@ -163,7 +164,7 @@ class CommonUtils:
             vars = [var] + list(vars)
             holds = True
             for state in state_list:
-              if not template.predicate(state | global_state, vars):
+              if not template.predicate(state, vars):
                 holds = False
                 break
             if holds:
@@ -207,6 +208,7 @@ class CommonUtils:
 
 @dataclasses.dataclass
 class VarIdsAndValues:
+  var_ids: list[int]
   values: list[Any]
 
   def __init__(self):
@@ -264,6 +266,7 @@ class AbstractState:
       if self.type_utils.to_consider(value):
         location = tuple([row[x] for x in self.keys])
         location_id = self.location_to_id.get_id(location)
+        print(f"line [{row['lineno']}]: trace({location_id}) = {value['abs']}")
         if location_id not in self.location_id_to_var_ids_and_values:
           vars_and_values = VarIdsAndValues()
           vars_and_values.add_to_abstraction_set(value["abs"])
@@ -294,11 +297,15 @@ class AbstractState:
 
       if row["type"].startswith("EXIT_") and not record_list[i - 1][
           "type"
-      ].startswith("CALL_"):
+      ].startswith("CALL_") \
+          and not name == "annotate_shape" \
+          and not name == "hyper_parameter":
         state = state_stack.pop()
       if not row["type"].startswith("EXIT_") and record_list[i - 1][
           "type"
-      ].startswith("CALL_"):
+      ].startswith("CALL_") \
+          and not name == "annotate_shape" \
+          and not name == "hyper_parameter":
         method_id = row["method_id"]
         state_stack.append(state)
         var_ids_in_method = self.get_var_ids_in_method(method_id)

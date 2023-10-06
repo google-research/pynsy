@@ -63,7 +63,7 @@ class Annotation:
     out.write(" " * indent)
     name = CommonUtils.get_nickname(self.opcode, self.name)
     concrete_shape_str = " ".join(str(x) for x in self.concrete_shape)
-    msg = f"# ↳ {name}: {self.symbolic_shape} · {concrete_shape_str}"
+    msg = f"# {name}: {self.symbolic_shape}" # => {concrete_shape_str}"
     out.write(msg)
     s = out.getvalue()
     if color:
@@ -73,6 +73,37 @@ class Annotation:
 
 class TensorShapeInferenceUtils:
   templates = [
+      Template(
+          "=",
+          2,
+          lambda state, vars: state.get(vars[0], 0) == state.get(vars[1], 0),
+          lambda vars: f"{vars[0]}",
+      ),
+      Template(
+          "+",
+          3,
+          lambda state, vars: False
+          if state.get(vars[0], 0) == 0
+             or state.get(vars[1], 0) == 0
+             or state.get(vars[2], 0) == 0
+          else state.get(vars[0], 0)
+               == state.get(vars[1], 0) + state.get(vars[2], 0),
+          lambda vars: f"{vars[0]} + {vars[1]}",
+      ),
+      Template(
+          "*",
+          3,
+          lambda state, vars: False
+          if state.get(vars[0], 0) == 0
+             or state.get(vars[0], 0) == 1
+             or state.get(vars[1], 0) == 0
+             or state.get(vars[1], 0) == 1
+             or state.get(vars[2], 0) == 0
+             or state.get(vars[2], 0) == 1
+          else state.get(vars[0], 0)
+               == state.get(vars[1], 0) * state.get(vars[2], 0),
+          lambda vars: f"{vars[0]} * {vars[1]}",
+      ),
       Template(
           "/",
           3,
@@ -86,26 +117,6 @@ class TensorShapeInferenceUtils:
           else state.get(vars[0], 0)
           == state.get(vars[1], 0) / state.get(vars[2], 0),
           lambda vars: f"{vars[0]} / {vars[1]}",
-      ),
-      Template(
-          "*",
-          3,
-          lambda state, vars: False
-          if state.get(vars[0], 0) == 0
-          or state.get(vars[0], 0) == 1
-          or state.get(vars[1], 0) == 0
-          or state.get(vars[1], 0) == 1
-          or state.get(vars[2], 0) == 0
-          or state.get(vars[2], 0) == 1
-          else state.get(vars[0], 0)
-          == state.get(vars[1], 0) * state.get(vars[2], 0),
-          lambda vars: f"{vars[0]} * {vars[1]}",
-      ),
-      Template(
-          "=",
-          2,
-          lambda state, vars: state.get(vars[0], 0) == state.get(vars[1], 0),
-          lambda vars: f"{vars[0]}",
       ),
   ]
 
@@ -162,10 +173,10 @@ class TensorShapeInferenceUtils:
         location_id,
         vars_and_values,
     ) in location_id_to_var_ids_and_values.items():
-      if all(
-          solution[x].get_template() != identity_template
-          for x in vars_and_values.var_ids
-      ):
+      # if all(
+      #     solution[x].get_template() != identity_template
+      #     for x in vars_and_values.var_ids
+      # ):
         annotation = [solution[x] for x in vars_and_values.var_ids]
         print(
             f"{location_id}{location_to_id.get_key(location_id)} : {annotation}"
@@ -211,6 +222,10 @@ def process_termination():
       location_id_to_record_list_index,
   ) = abstract_state.get_data()
 
+  for lid, state_list in location_id_to_state_list.items():
+    for state in state_list:
+      print(f"state({lid}: {state}")
+
   for k, v in location_id_to_var_ids_and_values.items():
     print(f"{k}{location_to_id.get_key(k)} : {v}")
   solution = CommonUtils.find_solution(
@@ -227,7 +242,7 @@ def process_termination():
   )
 
   for rhs in solution:
-    if rhs.get_template() != CommonUtils.identity_template:
+#    if rhs.get_template() != CommonUtils.identity_template:
       rhs.vars = [
           fresh_var_generator.get_annotation(var_id) for var_id in rhs.vars
       ]
@@ -258,11 +273,11 @@ def process_termination():
     concrete_shapes = vars_and_values.values
 
     total_dimensions_count += len(symbolic_shape)
-    if not all(
-        solution[x].get_template() != CommonUtils.identity_template
-        for x in vars_and_values.var_ids
-    ):
-      continue
+    # if not all(
+    #     solution[x].get_template() != CommonUtils.identity_template
+    #     for x in vars_and_values.var_ids
+    # ):
+    #   continue
 
     annotation = Annotation(
         opcode=opcode,
