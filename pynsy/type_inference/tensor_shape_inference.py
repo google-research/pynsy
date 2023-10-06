@@ -21,10 +21,14 @@ from typing import Any
 import pandas as pd
 from rich.text import Text
 
-from pynsy.type_inference.inference_engine import AbstractState, Template, CommonUtils
 from pynsy.analyses import util
 from pynsy.instrumentation import logging_utils
 from pynsy.instrumentation import module_loader
+from pynsy.type_inference import inference_engine
+
+AbstractState = inference_engine.AbstractState
+Template = inference_engine.Template
+CommonUtils = inference_engine.CommonUtils
 
 log = logging_utils.logger(__name__)
 print_panel = logging_utils.print_panel
@@ -81,7 +85,7 @@ class TensorShapeInferenceUtils:
           or state.get(vars[2], 0) == 1
           else state.get(vars[0], 0)
           == state.get(vars[1], 0) / state.get(vars[2], 0),
-          lambda vars: f"{vars[0]}          /{vars[1]}",
+          lambda vars: f"{vars[0]} / {vars[1]}",
       ),
       Template(
           "*",
@@ -95,7 +99,7 @@ class TensorShapeInferenceUtils:
           or state.get(vars[2], 0) == 1
           else state.get(vars[0], 0)
           == state.get(vars[1], 0) * state.get(vars[2], 0),
-          lambda vars: f"{vars[0]}*{vars[1]}",
+          lambda vars: f"{vars[0]} * {vars[1]}",
       ),
       Template(
           "=",
@@ -236,8 +240,9 @@ def process_termination():
       CommonUtils.identity_template,
   )
 
-  dimensions_count = 0
-  unified_dimensions_count = 0
+  total_dimensions_count = 0
+  shown_dimensions_count = 0
+  unified_dimensions = set()
   annotations_by_line_by_module: dict[str, dict[int, list]] = (
       collections.defaultdict(lambda: collections.defaultdict(list))
   )
@@ -252,6 +257,13 @@ def process_termination():
     symbolic_shape = [solution[x] for x in vars_and_values.var_ids]
     concrete_shapes = vars_and_values.values
 
+    total_dimensions_count += len(symbolic_shape)
+    if not all(
+        solution[x].get_template() != CommonUtils.identity_template
+        for x in vars_and_values.var_ids
+    ):
+      continue
+
     annotation = Annotation(
         opcode=opcode,
         name=name,
@@ -260,13 +272,15 @@ def process_termination():
             concrete_shape["abs"] for concrete_shape in concrete_shapes
         ],
     )
-    dimensions_count += len(symbolic_shape)
-    unified_dimensions_count += len(set(symbolic_shape))
+    shown_dimensions_count += len(symbolic_shape)
+    unified_dimensions.update(repr(dim) for dim in symbolic_shape)
     annotations_by_line_by_module[module_name][line_number].append(annotation)
 
   log(f"Annotation count: {len(location_id_to_var_ids_and_values)}.")
-  log(f"Dimensions count: {dimensions_count}.")
-  log(f"Anti-unified dimension variable count: {unified_dimensions_count}.")
+  log(f"Dimensions count: {total_dimensions_count}.")
+  log(f"Shown dimensions variable count: {shown_dimensions_count}.")
+  log(f"Anti-unified dimension variables ({len(unified_dimensions)}): "
+      f"{sorted(unified_dimensions)}.")
 
   modules_by_name = {}
   module_text_by_name = {}

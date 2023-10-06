@@ -24,6 +24,8 @@ import urllib.request
 
 import numpy as np
 
+import pynsy.type_inference.tensor_shape_inference as shaper
+
 
 _DATA = "/tmp/jax_example_data/"
 
@@ -84,6 +86,7 @@ def mnist_raw():
 def mnist(permute_train=False):
   """Download, parse and process MNIST data to unit scale and one-hot labels."""
   train_images, train_labels, test_images, test_labels = mnist_raw()
+  shaper.annotate_shape(train_images, ("example_count", "size"))
 
   train_images = _partial_flatten(train_images) / np.float32(255.0)
   test_images = _partial_flatten(test_images) / np.float32(255.0)
