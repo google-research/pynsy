@@ -351,7 +351,9 @@ def process_termination():
     annotated_source = "\n".join(annotated_lines)
     if verbose:
       annotated_text = Text(annotated_source)
-      annotated_text.highlight_regex(r"\s*# ↳.+", style="bold magenta")
+      annotated_text.highlight_regex(
+          r"\s*# (↳|@\$\\triangleright\$@).+", style="bold magenta"
+      )
       print_panel(annotated_text, title=f"Shape annotations: [b]{module_name}")
 
     annotations_file = util.get_output_path(
