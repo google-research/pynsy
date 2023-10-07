@@ -351,7 +351,7 @@ def process_termination():
     if verbose:
       annotated_text = Text(annotated_source)
       annotated_text.highlight_regex(
-          r"\s*# (↳|@\$\\triangleright\$@).+", style="bold magenta"
+          r"\s*# (.+?): \[.+?\] => .*", style="bold magenta"
       )
       print_panel(annotated_text, title=f"Shape annotations: [b]{module_name}")
 
