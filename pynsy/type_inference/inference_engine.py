@@ -300,12 +300,14 @@ class AbstractState:
           "type"
       ].startswith("CALL_") \
           and not name == "annotate_shape" \
+          and not name == "annotate_dimension" \
           and not name == "hyper_parameter":
         state = state_stack.pop()
       if not row["type"].startswith("EXIT_") and record_list[i - 1][
           "type"
       ].startswith("CALL_") \
           and not name == "annotate_shape" \
+          and not name == "annotate_dimension" \
           and not name == "hyper_parameter":
         method_id = row["method_id"]
         state_stack.append(state)
