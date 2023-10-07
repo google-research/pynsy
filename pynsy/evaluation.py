@@ -189,11 +189,15 @@ def evaluate(example: str | EvaluationExample, pbar: tqdm.tqdm | None = None):
   except:
     pynsy_time = 'Error'
 
+  try:
+    slowdown = pynsy_time / baseline_time
+  except:
+    slowdown = 'Error'
   row = dict(
       name=example.name,
       baseline_time=baseline_time,
       pynsy_time=pynsy_time,
-      slowdown=pynsy_time / baseline_time,
+      slowdown=slowdown,
   )
   return row
 
