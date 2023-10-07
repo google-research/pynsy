@@ -153,23 +153,24 @@ class CommonUtils:
       for location_id, state_list in location_id_to_state_list.items():
         exclude = location_id_to_var_ids_and_values[location_id].var_ids
         for var in exclude:
-          vars_list = [
-              i
-              for i in range(n_var_ids)
-              if i != var
-              and solution[i].get_template() == cls.identity_template
-          ]
-          vars_iter = itertools.combinations(vars_list, template.n_vars - 1)
-          for vars in vars_iter:
-            vars = [var] + list(vars)
-            holds = True
-            for state in state_list:
-              if not template.predicate(state, vars):
-                holds = False
+          if solution[var].get_template() == cls.identity_template:
+            vars_list = [
+                i
+                for i in range(n_var_ids)
+                if i != var
+                and solution[i].get_template() == cls.identity_template
+            ]
+            vars_iter = itertools.combinations(vars_list, template.n_vars - 1)
+            for vars in vars_iter:
+              vars = [var] + list(vars)
+              holds = True
+              for state in state_list:
+                if not template.predicate(state, vars):
+                  holds = False
+                  break
+              if holds:
+                solution[var] = template.get_instance(vars[1:])
                 break
-            if holds:
-              solution[var] = template.get_instance(vars[1:])
-              break
     return solution
 
   @classmethod

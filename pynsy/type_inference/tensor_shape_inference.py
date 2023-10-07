@@ -67,11 +67,10 @@ class Annotation:
     concrete_shape_str = " ".join(str(x) for x in self.concrete_shape)
     if latex:
       msg = (
-          r"# @$\triangleright$@ "
-          f"{name}: {self.symbolic_shape}"
+          f"# {name}: {self.symbolic_shape} => {concrete_shape_str}"
       )
     else:
-      msg = f"# ↳ {name}: {self.symbolic_shape} · {concrete_shape_str}"
+      msg = f"# ↳ {name}: {self.symbolic_shape} => {concrete_shape_str}"
     out.write(msg)
     s = out.getvalue()
     if color:
