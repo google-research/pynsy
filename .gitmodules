@@ -13,3 +13,9 @@
 [submodule "pynsy/demos/tensorflow_models"]
 	path = pynsy/demos/tensorflow_models
 	url = git@github.com:tensorflow/models.git
+[submodule "pynsy/demos/praxis"]
+	path = pynsy/demos/praxis
+	url = git@github.com:google/praxis.git
+[submodule "pynsy/demos/t5x"]
+	path = pynsy/demos/t5x
+	url = git@github.com:google-research/t5x.git
