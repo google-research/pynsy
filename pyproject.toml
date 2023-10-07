@@ -66,6 +66,9 @@ dev = [
     "torchvision",
     "gym",
     "pygame",
+
+    # TensorFlow
+    "tf-models-official",
 ]
 
 [tool.pyink]

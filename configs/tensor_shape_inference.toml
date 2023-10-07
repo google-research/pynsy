@@ -8,10 +8,14 @@ include = [
   # "levanter",
   "levanter.main",
   "levanter.models",
+  # "tensorflow_models",
+  "official.nlp.modeling.models",
+  "official.nlp.modeling.networks",
 ]
 exclude = [
   "jax",
   "optax",
   "pynsy",
   "pynsy.demos.haiku.examples.transformer.dataset",
+  "tensorflow",
 ]

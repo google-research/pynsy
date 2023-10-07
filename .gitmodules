@@ -7,3 +7,9 @@
 [submodule "pynsy/demos/pytorch_examples"]
 	path = pynsy/demos/pytorch_examples
 	url = git@github.com:dan-zheng/pytorch-examples.git
+[submodule "pynsy/demos/tensorflow_examples"]
+	path = pynsy/demos/tensorflow_examples
+	url = git@github.com:tensorflow/examples.git
+[submodule "pynsy/demos/tensorflow_models"]
+	path = pynsy/demos/tensorflow_models
+	url = git@github.com:tensorflow/models.git
