@@ -11,6 +11,7 @@ include = [
   # "tensorflow_models",
   "official.nlp.modeling.models",
   "official.nlp.modeling.networks",
+  "tf_mnist",
 ]
 exclude = [
   "jax",
@@ -18,4 +19,5 @@ exclude = [
   "pynsy",
   "pynsy.demos.haiku.examples.transformer.dataset",
   "tensorflow",
+  "keras",
 ]
