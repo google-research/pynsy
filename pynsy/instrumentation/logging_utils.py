@@ -35,8 +35,8 @@ def styled(text: str, style: str, *, end: str = "") -> str:
   return string_console.file.getvalue()
 
 
-def print_panel(renderable: Any, title: str = ""):
-  CONSOLE.print(Panel(renderable, title=title))
+def print_panel(renderable: Any, title: str = "", width: int | None = 80):
+  CONSOLE.print(Panel(renderable, title=title, width=width))
 
 
 def logger(analysis_name: str):

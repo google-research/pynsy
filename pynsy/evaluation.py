@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from collections.abc import Sequence
+import json
 import pathlib
 import shlex
 import subprocess
@@ -23,6 +24,7 @@ import pandas as pd
 import tqdm
 
 from pynsy.analyses import util
+from pynsy.type_inference import tensor_shape_inference
 
 
 ROOT_DIR = pathlib.Path(__file__).parent.parent.resolve()
@@ -55,7 +57,7 @@ class EvaluationExample:
     args = ['python3', '-m'] + self.raw_args
     return run_command(args)
 
-  def run_pynsy_command(self) -> int:
+  def run_pynsy_command(self, extra_pynsy_args: Sequence[str] = ()) -> int:
     module_name, *remaining_args = self.raw_args
     args = [
         'python3',
@@ -65,6 +67,7 @@ class EvaluationExample:
         str(ROOT_DIR / 'configs/tensor_shape_inference.toml'),
         '--module',
         module_name,
+    ] + list(extra_pynsy_args) + [
         '--',
     ] + remaining_args
     return run_command(args)
@@ -216,6 +219,63 @@ def evaluate_all():
   df.to_csv(util.OUTPUT_ROOT_DIR / 'evaluation_performance.csv', index=False)
   df.to_latex(
       util.OUTPUT_ROOT_DIR / 'evaluation_performance.tex',
+      float_format='%.2f',
+      index=False,
+      escape=True,
+  )
+
+
+def evaluate_metrics(
+    example: str | EvaluationExample, pbar: tqdm.tqdm | None = None
+):
+  """Evaluates anti-unification metrics for the given example program."""
+  if isinstance(example, str):
+    example = EVAL_COMMANDS_BY_NAME[example]
+
+  example_name = shlex.quote(example.name)
+  example.run_setup_commands()
+
+  msg = f'Evaluating {example.name} with Pynsy'
+  if pbar:
+    pbar.set_description(msg)
+  else:
+    print(msg)
+  try:
+    pynsy_time = example.run_pynsy_command(
+        extra_pynsy_args=['--example_name', example_name]
+    )
+  except:
+    pynsy_time = 'Error'
+
+  metrics_file = tensor_shape_inference.get_metrics_filepath(example_name)
+  metrics_content = pathlib.Path(metrics_file).read_text()
+  print('metrics_content')
+  print(metrics_content)
+  metrics = json.loads(metrics_content)
+  print(json.dumps(metrics))
+
+  row = dict(
+      name=example.name,
+      pynsy_time=pynsy_time,
+      metrics=metrics,
+  )
+  return row
+
+
+def evaluate_all_metrics():
+  """Evaluates anti-unification metrics for all example programs."""
+  rows = []
+  pbar = tqdm.tqdm(EXAMPLES)
+  for example in pbar:
+    row = evaluate_metrics(example, pbar=pbar)
+    print(row)
+    rows.append(row)
+  df = pd.DataFrame.from_records(rows)
+  df = df.sort_values(by=['name'])
+  print(df.to_string(index=False))
+  df.to_csv(util.OUTPUT_ROOT_DIR / 'evaluation_metrics.csv', index=False)
+  df.to_latex(
+      util.OUTPUT_ROOT_DIR / 'evaluation_metrics.tex',
       float_format='%.2f',
       index=False,
       escape=True,

@@ -16,8 +16,10 @@ import collections
 import dataclasses
 from datetime import datetime
 import io
+import json
 from typing import Any
 
+from absl import flags
 import pandas as pd
 from rich.text import Text
 
@@ -39,6 +41,10 @@ record_list = []
 now = datetime.now()
 timestamp = int(round(now.timestamp()))
 
+EXAMPLE_NAME_FLAG = flags.DEFINE_string(
+    'example_name', None, 'Example name, used for storing analysis outputs.'
+)
+
 
 @dataclasses.dataclass
 class Annotation:
@@ -59,7 +65,8 @@ class Annotation:
   concrete_shape: Any
 
   def to_string(
-      self, indent: int = 0, *, color: bool = True, latex: bool = True
+      # self, indent: int = 0, *, color: bool = True, latex: bool = True
+      self, indent: int = 0, *, color: bool = True, latex: bool = False
   ) -> str:
     out = io.StringIO()
     out.write(" " * indent)
@@ -203,6 +210,12 @@ def process_event(record):
   record_list.append(record)
 
 
+def get_metrics_filepath(example_name):
+  return util.get_output_path(
+      "tensor_shape_inference", f"metrics/{example_name}.json"
+  )
+
+
 def process_termination():
   verbose = True
   if not record_list:
@@ -263,8 +276,8 @@ def process_termination():
   )
 
   total_dimensions_count = 0
-  shown_dimensions_count = 0
-  unified_dimensions = set()
+  unique_dimension_template_instances = set()
+  unique_dimensions = set()
   annotations_by_line_by_module: dict[str, dict[int, list]] = (
       collections.defaultdict(lambda: collections.defaultdict(list))
   )
@@ -280,11 +293,6 @@ def process_termination():
     concrete_shapes = vars_and_values.values
 
     total_dimensions_count += len(symbolic_shape)
-    # if not all(
-    #     solution[x].get_template() != CommonUtils.identity_template
-    #     for x in vars_and_values.var_ids
-    # ):
-    #   continue
 
     annotation = Annotation(
         opcode=opcode,
@@ -294,20 +302,18 @@ def process_termination():
             concrete_shape["abs"] for concrete_shape in concrete_shapes
         ],
     )
-    shown_dimensions_count += len(symbolic_shape)
-    unified_dimensions.update(repr(dim) for dim in symbolic_shape)
+    for dim in symbolic_shape:
+      print(dim, repr(dim.get_name()))
+    unique_dimension_template_instances.update(dim for dim in symbolic_shape)
+    unique_dimensions.update(
+        repr(dim) for dim in symbolic_shape
+        if dim.get_name() in ("=", CommonUtils.identity_template.name)
+    )
     annotations_by_line_by_module[module_name][line_number].append(annotation)
-
-  log(f"Annotation count: {len(location_id_to_var_ids_and_values)}.")
-  log(f"Dimensions count: {total_dimensions_count}.")
-  log(f"Shown dimensions variable count: {shown_dimensions_count}.")
-  log(
-      f"Anti-unified dimension variables ({len(unified_dimensions)}): "
-      f"{sorted(unified_dimensions)}."
-  )
 
   modules_by_name = {}
   module_text_by_name = {}
+  annotation_count_by_module_name = collections.defaultdict(int)
   for module_name, annotations_by_line in annotations_by_line_by_module.items():
     module = module_loader.import_method_from_module(module_name)
     modules_by_name[module_name] = module
@@ -341,6 +347,7 @@ def process_termination():
       annotated_line = module_lines[end_index]
       indent = CommonUtils.count_leading_spaces(annotated_line)
       annotations = annotations_by_line[line_number]
+      annotation_count_by_module_name[module_name] += len(annotations)
       for annotation in annotations:
         s = annotation.to_string(indent=indent, color=True)
         annotated_lines.append(s)
@@ -383,6 +390,32 @@ def process_termination():
         out.write(f"{module_name}@{line_number}:\n")
         for name, shape, concrete in s:
           out.write(f"    {name}: {shape} {concrete}\n")
+
+  print("Annotation count by module:")
+  print(json.dumps(annotation_count_by_module_name, indent=2))
+
+  unique_dimension_expressions = set(repr(e) for e in unique_dimension_template_instances)
+  template_count_by_name = collections.Counter(
+      x.get_name() for x in unique_dimension_template_instances
+  )
+
+  metrics = {}
+  metrics['annotation_count'] = len(location_id_to_var_ids_and_values)
+  metrics['total_dimensions_count'] = total_dimensions_count
+  metrics['unique_dimension_expression_count'] = len(unique_dimension_expressions)
+  metrics['unique_dimension_count'] = len(unique_dimensions)
+  metrics['unique_dimension_expressions'] = sorted(unique_dimension_expressions)
+  metrics['unique_dimensions'] = sorted(unique_dimensions)
+  metrics['template_count_by_name'] = template_count_by_name
+
+  log(f"Shape inference anti-unification metrics.")
+  log(json.dumps(metrics, indent=2))
+
+  if EXAMPLE_NAME_FLAG.present:
+    metrics_file = get_metrics_filepath(EXAMPLE_NAME_FLAG.value)
+    log(f"Saving metrics file: {metrics_file}.")
+    with open(metrics_file, "w") as out:
+      json.dump(metrics, out, indent=2)
 
 
 observed_hyper_parameters = set()
