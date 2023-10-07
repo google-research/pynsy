@@ -414,3 +414,8 @@ def hyper_parameter(dim_int, dim_name):
   observed_hyper_parameters.add(dim_int)
   annotate_shape(dim_int, dim_name)
   return dim_int
+
+def annotate_dimension(dim_int, dim_name):
+  observed_hyper_parameters.add(dim_int)
+  annotate_shape(dim_int, dim_name)
+  return dim_int
