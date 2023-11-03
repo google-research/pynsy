@@ -8,6 +8,8 @@ provides a hook to log or inspect each Python bytecode being executed along with
 dynamic information about the operands involved in the bytecode. In the
 distribution you will find several analyses.
 
+Currently, Pynsy supports Python 3.10 and earlier.
+
 *This is not an officially supported Google product.*
 
 ## Installation
