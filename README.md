@@ -105,3 +105,11 @@ def process_termination():
 
 Typically, analyses process only specific Python instruction types (e.g.
 function calls, or loads and stores) and ignore others.
+
+## Research papers
+
+> **"Dynamic Inference of Likely Symbolic Tensor Shapes in Python Machine Learning Programs"**
+>
+> Koushik Sen, Daniel Zheng.
+>
+> In _Proceedings of the IEEE/ACM 46th International Conference on Software Engineering: Software Engineering in Practice (ICSE-SEIP 2024)_. ([PDF preprint](https://storage.googleapis.com/gweb-research2023-media/pubtools/pdf/f4c7d2ebfbf919c19bec9f58565c1a2f865f7e98.pdf))
